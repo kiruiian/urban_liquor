@@ -9,6 +9,8 @@ from app.core.config import get_settings
 from app.modules.auth.router import router as auth_router
 from app.modules.inventory.router import router as inventory_router
 from app.modules.sales.router import router as sales_router
+from app.modules.suppliers.router import router as suppliers_router
+from app.modules.wholesale.router import router as wholesale_router
 
 settings = get_settings()
 frontend_dist = Path(__file__).resolve().parents[1] / "frontend" / "dist"
@@ -44,6 +46,8 @@ async def health_check():
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Authentication"])
 app.include_router(inventory_router, prefix="/api/v1/inventory", tags=["Inventory"])
 app.include_router(sales_router, prefix="/api/v1/sales", tags=["Sales"])
+app.include_router(suppliers_router, prefix="/api/v1/suppliers", tags=["Suppliers"])
+app.include_router(wholesale_router, prefix="/api/v1/wholesale", tags=["Wholesale"])
 
 if frontend_assets.is_dir():
     app.mount(

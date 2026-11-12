@@ -10,6 +10,8 @@ from app.core.database import Base
 from app.modules.auth import models as auth_models
 from app.modules.inventory import models as inventory_models
 from app.modules.sales import models as sales_models
+from app.modules.suppliers import models as supplier_models
+from app.modules.wholesale import models as wholesale_models
 
 config = context.config
 settings = get_settings()

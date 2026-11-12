@@ -131,6 +131,16 @@ do not connect to or modify the configured store database:
 - `GET` / `PATCH /api/v1/inventory/products/{product_id}` — view or edit a product.
 - `POST /api/v1/inventory/products/{product_id}/stock-adjustments` — record a signed
   quantity change with a reason.
+- `GET` / `POST /api/v1/suppliers` — admin-only supplier directory.
+- `PATCH /api/v1/suppliers/{supplier_id}` — admin-only supplier contact and activation updates.
+- `GET /api/v1/suppliers/receipts` and `POST /api/v1/suppliers/receipts` — admin-only
+  supplier delivery history and stock receiving; duplicate supplier references are rejected.
+- `GET /api/v1/wholesale/customers` — list shops that buy stock from the depot.
+- `POST` / `PATCH /api/v1/wholesale/customers` — admin-only shop customer management.
+- `GET` / `POST /api/v1/wholesale/sales` — list or record shop deliveries at negotiated
+  per-delivery product prices; deliveries reduce depot stock and may be paid now or on credit.
+- `POST /api/v1/wholesale/sales/{sale_id}/payments` — record cash or M-Pesa payments
+  against an outstanding wholesale balance.
 - `POST /api/v1/sales` — complete checkout using server-side prices, reduce stock, and
   record one or both tenders (`cash`, `mpesa`).
 - `GET /api/v1/sales` and `GET /api/v1/sales/{sale_id}` — browse sale history.
@@ -156,6 +166,19 @@ created once using the CLI bootstrap command. New staff sign in with a username.
 Existing accounts keep their former email value as their initial username after
 migration; enter that value in the username field.
 
+Admins and cashiers see an in-app low-stock alert for active products whose quantity
+is at or below the product's configured low-stock threshold.
+
+Admins can manage supplier contacts and record deliveries using an invoice or delivery
+reference. Each receipt updates stock and creates stock-movement records. Cashiers and
+admins can print a customer sales receipt from the checkout confirmation using the
+browser's print dialog.
+
+Admins manage wholesale shop accounts; admins and cashiers can record shop deliveries,
+set the agreed unit price for each line, take cash/M-Pesa payments, and apply later
+payments to the outstanding balance. Wholesale deliveries create stock movements and
+printable invoices; they are tracked separately from counter sales.
+
 This is an early development foundation, not a production-ready POS: age-verification
-workflows, tax rules, receipt printing, refunds, provider-backed M-Pesa confirmation,
-and production deployment hardening/monitoring are not included yet.
+workflows, tax rules, refunds, provider-backed M-Pesa confirmation, and production
+deployment hardening/monitoring are not included yet.

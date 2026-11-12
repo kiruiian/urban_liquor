@@ -1,0 +1,240 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2500" viewBox="0 0 1800 2500" role="img" aria-labelledby="title description">
+  <title id="title">Urban Liquor Litein database ERD</title>
+  <desc id="description">Entity relationship diagram for staff, products, stock movements, suppliers, supplier receipts, sales, sale items, and payments.</desc>
+  <defs>
+    <style>
+      text { font-family: "Segoe UI", Arial, sans-serif; fill: #24352d; }
+      .title { font-size: 34px; font-weight: 700; fill: #173c2e; }
+      .subtitle { font-size: 16px; fill: #68786f; }
+      .entity { fill: #fff; stroke: #cbd8cf; stroke-width: 2; }
+      .entity-head { fill: #173c2e; }
+      .entity-name { font-size: 19px; font-weight: 700; fill: #fff; letter-spacing: .4px; }
+      .field { font-size: 15px; }
+      .key { font-size: 11px; font-weight: 700; fill: #46745b; }
+      .type { font-size: 12px; fill: #7a8980; }
+      .divider { stroke: #edf1ed; stroke-width: 1; }
+      .relation { fill: none; stroke: #527a61; stroke-width: 2.5; }
+      .relation-label { font-size: 13px; font-weight: 700; fill: #527a61; }
+      .note { font-size: 14px; fill: #53665b; }
+      .note-box { fill: #f0f5f1; stroke: #d3e0d6; stroke-width: 1.5; }
+      .legend { font-size: 13px; fill: #64746a; }
+    </style>
+    <marker id="crowfoot" viewBox="0 0 12 12" refX="10" refY="6" markerWidth="12" markerHeight="12" orient="auto-start-reverse">
+      <path d="M1 1 L10 6 L1 11 M1 6 L10 6" fill="none" stroke="#527a61" stroke-width="1.5"/>
+    </marker>
+  </defs>
+
+  <rect width="1800" height="2500" fill="#f7f9f7"/>
+  <text class="title" x="70" y="70">Urban Liquor Litein — Database ERD</text>
+  <text class="subtitle" x="70" y="102">Current application schema • primary keys, foreign keys, unique fields, and nullable fields shown</text>
+
+  <g aria-label="Staff table">
+    <rect class="entity" x="70" y="180" width="450" height="320" rx="12"/>
+    <path class="entity-head" d="M82 180 H508 Q520 180 520 192 V232 H70 V192 Q70 180 82 180 Z"/>
+    <text class="entity-name" x="94" y="213">staff</text>
+    <text class="field" x="94" y="266">id</text><text class="key" x="380" y="266">PK</text><text class="type" x="420" y="266">integer</text><path class="divider" d="M90 278 H500"/>
+    <text class="field" x="94" y="302">username</text><text class="key" x="380" y="302">UQ</text><text class="type" x="420" y="302">varchar(254)</text><path class="divider" d="M90 314 H500"/>
+    <text class="field" x="94" y="338">full_name</text><text class="type" x="420" y="338">varchar(120)</text><path class="divider" d="M90 350 H500"/>
+    <text class="field" x="94" y="374">password_hash</text><text class="type" x="420" y="374">varchar(255)</text><path class="divider" d="M90 386 H500"/>
+    <text class="field" x="94" y="410">role</text><text class="type" x="420" y="410">varchar(16)</text><path class="divider" d="M90 422 H500"/>
+    <text class="field" x="94" y="446">is_active</text><text class="type" x="420" y="446">boolean</text><path class="divider" d="M90 458 H500"/>
+    <text class="field" x="94" y="482">created_at</text><text class="type" x="420" y="482">timestamptz</text>
+  </g>
+
+  <g aria-label="Products table">
+    <rect class="entity" x="650" y="150" width="480" height="390" rx="12"/>
+    <path class="entity-head" d="M662 150 H1118 Q1130 150 1130 162 V202 H650 V162 Q650 150 662 150 Z"/>
+    <text class="entity-name" x="674" y="183">products</text>
+    <text class="field" x="674" y="236">id</text><text class="key" x="982" y="236">PK</text><text class="type" x="1050" y="236">integer</text><path class="divider" d="M670 248 H1110"/>
+    <text class="field" x="674" y="270">sku</text><text class="key" x="982" y="270">UQ</text><text class="type" x="1050" y="270">varchar(64)</text><path class="divider" d="M670 282 H1110"/>
+    <text class="field" x="674" y="304">barcode</text><text class="key" x="982" y="304">UQ · NULL</text><text class="type" x="1050" y="304">varchar(64)</text><path class="divider" d="M670 316 H1110"/>
+    <text class="field" x="674" y="338">name</text><text class="type" x="1050" y="338">varchar(160)</text><path class="divider" d="M670 350 H1110"/>
+    <text class="field" x="674" y="372">category</text><text class="key" x="982" y="372">NULL</text><text class="type" x="1050" y="372">varchar(80)</text><path class="divider" d="M670 384 H1110"/>
+    <text class="field" x="674" y="406">unit_price</text><text class="type" x="1050" y="406">numeric(12,2)</text><path class="divider" d="M670 418 H1110"/>
+    <text class="field" x="674" y="440">stock_quantity</text><text class="type" x="1050" y="440">numeric(12,3)</text><path class="divider" d="M670 452 H1110"/>
+    <text class="field" x="674" y="474">low_stock_threshold</text><text class="type" x="1050" y="474">numeric(12,3)</text><path class="divider" d="M670 486 H1110"/>
+    <text class="field" x="674" y="508">is_active</text><text class="type" x="1050" y="508">boolean</text><path class="divider" d="M670 520 H1110"/>
+    <text class="field" x="674" y="536">created_at · updated_at</text><text class="type" x="1050" y="536">timestamptz</text>
+  </g>
+
+  <g aria-label="Sales table">
+    <rect class="entity" x="1300" y="150" width="440" height="250" rx="12"/>
+    <path class="entity-head" d="M1312 150 H1728 Q1740 150 1740 162 V202 H1300 V162 Q1300 150 1312 150 Z"/>
+    <text class="entity-name" x="1324" y="183">sales</text>
+    <text class="field" x="1324" y="236">id</text><text class="key" x="1595" y="236">PK</text><text class="type" x="1635" y="236">integer</text><path class="divider" d="M1320 248 H1720"/>
+    <text class="field" x="1324" y="270">currency</text><text class="type" x="1635" y="270">varchar(3)</text><path class="divider" d="M1320 282 H1720"/>
+    <text class="field" x="1324" y="304">subtotal · total</text><text class="type" x="1635" y="304">numeric(12,2)</text><path class="divider" d="M1320 316 H1720"/>
+    <text class="field" x="1324" y="338">created_at</text><text class="type" x="1635" y="338">timestamptz</text>
+  </g>
+
+  <g aria-label="Stock movements table">
+    <rect class="entity" x="650" y="740" width="480" height="300" rx="12"/>
+    <path class="entity-head" d="M662 740 H1118 Q1130 740 1130 752 V792 H650 V752 Q650 740 662 740 Z"/>
+    <text class="entity-name" x="674" y="773">stock_movements</text>
+    <text class="field" x="674" y="826">id</text><text class="key" x="982" y="826">PK</text><text class="type" x="1050" y="826">integer</text><path class="divider" d="M670 838 H1110"/>
+    <text class="field" x="674" y="862">product_id</text><text class="key" x="982" y="862">FK</text><text class="type" x="1050" y="862">integer</text><path class="divider" d="M670 874 H1110"/>
+    <text class="field" x="674" y="898">quantity_delta</text><text class="type" x="1050" y="898">numeric(12,3)</text><path class="divider" d="M670 910 H1110"/>
+    <text class="field" x="674" y="934">reason · reference_type</text><text class="type" x="1050" y="934">varchar</text><path class="divider" d="M670 946 H1110"/>
+    <text class="field" x="674" y="970">reference_id</text><text class="key" x="982" y="970">NOT FK</text><text class="type" x="1050" y="970">integer · NULL</text><path class="divider" d="M670 982 H1110"/>
+    <text class="field" x="674" y="1014">created_at</text><text class="type" x="1050" y="1014">timestamptz</text>
+  </g>
+
+  <g aria-label="Sale items table">
+    <rect class="entity" x="1300" y="680" width="440" height="330" rx="12"/>
+    <path class="entity-head" d="M1312 680 H1728 Q1740 680 1740 692 V732 H1300 V692 Q1300 680 1312 680 Z"/>
+    <text class="entity-name" x="1324" y="713">sale_items</text>
+    <text class="field" x="1324" y="766">id</text><text class="key" x="1595" y="766">PK</text><text class="type" x="1635" y="766">integer</text><path class="divider" d="M1320 778 H1720"/>
+    <text class="field" x="1324" y="800">sale_id</text><text class="key" x="1595" y="800">FK</text><text class="type" x="1635" y="800">integer</text><path class="divider" d="M1320 812 H1720"/>
+    <text class="field" x="1324" y="834">product_id</text><text class="key" x="1595" y="834">FK</text><text class="type" x="1635" y="834">integer</text><path class="divider" d="M1320 846 H1720"/>
+    <text class="field" x="1324" y="868">product_name · sku</text><text class="type" x="1635" y="868">varchar</text><path class="divider" d="M1320 880 H1720"/>
+    <text class="field" x="1324" y="902">quantity</text><text class="type" x="1635" y="902">numeric(12,3)</text><path class="divider" d="M1320 914 H1720"/>
+    <text class="field" x="1324" y="936">unit_price · line_total</text><text class="type" x="1635" y="936">numeric(12,2)</text>
+  </g>
+
+  <g aria-label="Payments table">
+    <rect class="entity" x="1300" y="1120" width="440" height="280" rx="12"/>
+    <path class="entity-head" d="M1312 1120 H1728 Q1740 1120 1740 1132 V1172 H1300 V1132 Q1300 1120 1312 1120 Z"/>
+    <text class="entity-name" x="1324" y="1153">payments</text>
+    <text class="field" x="1324" y="1206">id</text><text class="key" x="1595" y="1206">PK</text><text class="type" x="1635" y="1206">integer</text><path class="divider" d="M1320 1218 H1720"/>
+    <text class="field" x="1324" y="1240">sale_id</text><text class="key" x="1595" y="1240">FK</text><text class="type" x="1635" y="1240">integer</text><path class="divider" d="M1320 1252 H1720"/>
+    <text class="field" x="1324" y="1274">method · amount</text><text class="type" x="1635" y="1274">varchar · numeric</text><path class="divider" d="M1320 1286 H1720"/>
+    <text class="field" x="1324" y="1308">cash_received · change_given</text><text class="type" x="1635" y="1308">numeric(12,2)</text><path class="divider" d="M1320 1320 H1720"/>
+    <text class="field" x="1324" y="1342">mpesa_reference</text><text class="key" x="1595" y="1342">NULL</text><text class="type" x="1635" y="1342">varchar(64)</text>
+  </g>
+
+  <g aria-label="Suppliers table">
+    <rect class="entity" x="70" y="1510" width="450" height="330" rx="12"/>
+    <path class="entity-head" d="M82 1510 H508 Q520 1510 520 1522 V1562 H70 V1522 Q70 1510 82 1510 Z"/>
+    <text class="entity-name" x="94" y="1543">suppliers</text>
+    <text class="field" x="94" y="1590">id</text><text class="key" x="380" y="1590">PK</text><text class="type" x="420" y="1590">integer</text><path class="divider" d="M90 1602 H500"/>
+    <text class="field" x="94" y="1624">name</text><text class="type" x="420" y="1624">varchar(160)</text><path class="divider" d="M90 1636 H500"/>
+    <text class="field" x="94" y="1658">contact_name · phone</text><text class="type" x="420" y="1658">varchar</text><path class="divider" d="M90 1670 H500"/>
+    <text class="field" x="94" y="1692">email</text><text class="type" x="420" y="1692">varchar(254)</text><path class="divider" d="M90 1704 H500"/>
+    <text class="field" x="94" y="1726">address</text><text class="type" x="420" y="1726">varchar(255)</text><path class="divider" d="M90 1738 H500"/>
+    <text class="field" x="94" y="1760">is_active</text><text class="type" x="420" y="1760">boolean</text><path class="divider" d="M90 1772 H500"/>
+    <text class="field" x="94" y="1794">created_at</text><text class="type" x="420" y="1794">timestamptz</text>
+  </g>
+
+  <g aria-label="Supplier receipts table">
+    <rect class="entity" x="650" y="1510" width="480" height="330" rx="12"/>
+    <path class="entity-head" d="M662 1510 H1118 Q1130 1510 1130 1522 V1562 H650 V1522 Q650 1510 662 1510 Z"/>
+    <text class="entity-name" x="674" y="1543">supplier_receipts</text>
+    <text class="field" x="674" y="1590">id</text><text class="key" x="982" y="1590">PK</text><text class="type" x="1050" y="1590">integer</text><path class="divider" d="M670 1602 H1110"/>
+    <text class="field" x="674" y="1624">supplier_id</text><text class="key" x="982" y="1624">FK</text><text class="type" x="1050" y="1624">integer</text><path class="divider" d="M670 1636 H1110"/>
+    <text class="field" x="674" y="1658">supplier_name</text><text class="type" x="1050" y="1658">varchar(160)</text><path class="divider" d="M670 1670 H1110"/>
+    <text class="field" x="674" y="1692">supplier_reference</text><text class="key" x="982" y="1692">UQ*</text><text class="type" x="1050" y="1692">varchar(80) · NULL</text><path class="divider" d="M670 1704 H1110"/>
+    <text class="field" x="674" y="1726">received_by_id</text><text class="key" x="982" y="1726">FK</text><text class="type" x="1050" y="1726">integer</text><path class="divider" d="M670 1738 H1110"/>
+    <text class="field" x="674" y="1760">received_by_name</text><text class="type" x="1050" y="1760">varchar(120)</text><path class="divider" d="M670 1772 H1110"/>
+    <text class="field" x="674" y="1794">received_at</text><text class="type" x="1050" y="1794">timestamptz</text>
+  </g>
+
+  <g aria-label="Supplier receipt items table">
+    <rect class="entity" x="1300" y="1510" width="440" height="290" rx="12"/>
+    <path class="entity-head" d="M1312 1510 H1728 Q1740 1510 1740 1522 V1562 H1300 V1522 Q1300 1510 1312 1510 Z"/>
+    <text class="entity-name" x="1324" y="1543">supplier_receipt_items</text>
+    <text class="field" x="1324" y="1590">id</text><text class="key" x="1595" y="1590">PK</text><text class="type" x="1635" y="1590">integer</text><path class="divider" d="M1320 1602 H1720"/>
+    <text class="field" x="1324" y="1624">receipt_id</text><text class="key" x="1595" y="1624">FK</text><text class="type" x="1635" y="1624">integer</text><path class="divider" d="M1320 1636 H1720"/>
+    <text class="field" x="1324" y="1658">product_id</text><text class="key" x="1595" y="1658">FK</text><text class="type" x="1635" y="1658">integer</text><path class="divider" d="M1320 1670 H1720"/>
+    <text class="field" x="1324" y="1692">product_name · sku</text><text class="type" x="1635" y="1692">varchar</text><path class="divider" d="M1320 1704 H1720"/>
+    <text class="field" x="1324" y="1726">quantity_received</text><text class="type" x="1635" y="1726">numeric(12,3)</text>
+  </g>
+
+  <path class="relation" d="M890 540 V740" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="902" y="565">1</text>
+  <text class="relation-label" x="902" y="720">0..*</text>
+
+  <path class="relation" d="M1520 400 V680" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="1532" y="425">1</text>
+  <text class="relation-label" x="1532" y="660">0..*</text>
+
+  <path class="relation" d="M1130 480 C1200 530 1230 630 1300 760" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="1170" y="578">products 1 : 0..* sale_items</text>
+
+  <path class="relation" d="M1740 270 H1770 V1260 H1740" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="1748" y="250">1</text>
+  <text class="relation-label" x="1748" y="1285">0..*</text>
+
+  <path class="relation" d="M520 1675 H650" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="535" y="1660">1</text>
+  <text class="relation-label" x="620" y="1660">0..*</text>
+
+  <path class="relation" d="M1130 1675 H1300" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="1145" y="1660">1</text>
+  <text class="relation-label" x="1270" y="1660">0..*</text>
+
+  <path class="relation" d="M1130 530 H1140 V1450 H1290 V1510" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="1135" y="1438">products 1 : 0..* receipt items</text>
+
+  <path class="relation" d="M295 500 V1060 H1190 V1490 H890 V1510" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="920" y="1478">staff 1 : 0..* receipts</text>
+
+  <rect class="note-box" x="70" y="1090" width="1050" height="215" rx="12"/>
+  <text class="note" x="98" y="1132" font-weight="700">Relationship notes</text>
+  <text class="note" x="98" y="1170">• A product has many stock movements and may appear in many sale items.</text>
+  <text class="note" x="98" y="1204">• A sale has many sale items and payment records.</text>
+  <text class="note" x="98" y="1238">• Sales have no staff_id foreign key; supplier receipts record the receiving staff member.</text>
+  <text class="note" x="98" y="1272">• stock_movements.reference_id is generic metadata, not a declared foreign key.</text>
+
+  <text class="title" x="70" y="1945" style="font-size:26px">Wholesale shop deliveries and account payments</text>
+  <text class="subtitle" x="70" y="1975">Separate from counter sales; each delivery stores agreed prices, reduces stock, and can be paid over time.</text>
+
+  <g aria-label="Wholesale customers table">
+    <rect class="entity" x="70" y="2010" width="400" height="340" rx="12"/>
+    <path class="entity-head" d="M82 2010 H458 Q470 2010 470 2022 V2062 H70 V2022 Q70 2010 82 2010 Z"/>
+    <text class="entity-name" x="94" y="2043">wholesale_customers</text>
+    <text class="field" x="94" y="2090">id</text><text class="key" x="350" y="2090">PK</text><text class="type" x="390" y="2090">integer</text><path class="divider" d="M90 2102 H450"/>
+    <text class="field" x="94" y="2124">name</text><text class="type" x="390" y="2124">varchar(160)</text><path class="divider" d="M90 2136 H450"/>
+    <text class="field" x="94" y="2158">contact_name · phone</text><text class="type" x="390" y="2158">varchar</text><path class="divider" d="M90 2170 H450"/>
+    <text class="field" x="94" y="2192">email</text><text class="type" x="390" y="2192">varchar(254)</text><path class="divider" d="M90 2204 H450"/>
+    <text class="field" x="94" y="2226">address</text><text class="type" x="390" y="2226">varchar(255)</text><path class="divider" d="M90 2238 H450"/>
+    <text class="field" x="94" y="2260">is_active</text><text class="type" x="390" y="2260">boolean</text><path class="divider" d="M90 2272 H450"/>
+    <text class="field" x="94" y="2294">created_at</text><text class="type" x="390" y="2294">timestamptz</text>
+  </g>
+
+  <g aria-label="Wholesale sales table">
+    <rect class="entity" x="500" y="2010" width="420" height="340" rx="12"/>
+    <path class="entity-head" d="M512 2010 H908 Q920 2010 920 2022 V2062 H500 V2022 Q500 2010 512 2010 Z"/>
+    <text class="entity-name" x="524" y="2043">wholesale_sales</text>
+    <text class="field" x="524" y="2090">id</text><text class="key" x="800" y="2090">PK</text><text class="type" x="840" y="2090">integer</text><path class="divider" d="M520 2102 H900"/>
+    <text class="field" x="524" y="2124">customer_id</text><text class="key" x="800" y="2124">FK</text><text class="type" x="840" y="2124">integer</text><path class="divider" d="M520 2136 H900"/>
+    <text class="field" x="524" y="2158">delivery_reference</text><text class="key" x="800" y="2158">NULL</text><text class="type" x="840" y="2158">varchar(80)</text><path class="divider" d="M520 2170 H900"/>
+    <text class="field" x="524" y="2192">created_by_id</text><text class="key" x="800" y="2192">FK</text><text class="type" x="840" y="2192">integer</text><path class="divider" d="M520 2204 H900"/>
+    <text class="field" x="524" y="2226">created_by_name</text><text class="type" x="840" y="2226">varchar(120)</text><path class="divider" d="M520 2238 H900"/>
+    <text class="field" x="524" y="2260">currency · total</text><text class="type" x="840" y="2260">varchar · numeric</text><path class="divider" d="M520 2272 H900"/>
+    <text class="field" x="524" y="2294">created_at</text><text class="type" x="840" y="2294">timestamptz</text>
+  </g>
+
+  <g aria-label="Wholesale sale items table">
+    <rect class="entity" x="950" y="2010" width="400" height="340" rx="12"/>
+    <path class="entity-head" d="M962 2010 H1338 Q1350 2010 1350 2022 V2062 H950 V2022 Q950 2010 962 2010 Z"/>
+    <text class="entity-name" x="974" y="2043">wholesale_sale_items</text>
+    <text class="field" x="974" y="2090">id</text><text class="key" x="1230" y="2090">PK</text><text class="type" x="1270" y="2090">integer</text><path class="divider" d="M970 2102 H1330"/>
+    <text class="field" x="974" y="2124">sale_id</text><text class="key" x="1230" y="2124">FK</text><text class="type" x="1270" y="2124">integer</text><path class="divider" d="M970 2136 H1330"/>
+    <text class="field" x="974" y="2158">product_id</text><text class="key" x="1230" y="2158">FK</text><text class="type" x="1270" y="2158">integer</text><path class="divider" d="M970 2170 H1330"/>
+    <text class="field" x="974" y="2192">product_name · sku</text><text class="type" x="1270" y="2192">varchar</text><path class="divider" d="M970 2204 H1330"/>
+    <text class="field" x="974" y="2226">quantity</text><text class="type" x="1270" y="2226">numeric(12,3)</text><path class="divider" d="M970 2238 H1330"/>
+    <text class="field" x="974" y="2260">unit_price · line_total</text><text class="type" x="1270" y="2260">numeric(12,2)</text>
+  </g>
+
+  <g aria-label="Wholesale payments table">
+    <rect class="entity" x="1380" y="2010" width="360" height="340" rx="12"/>
+    <path class="entity-head" d="M1392 2010 H1728 Q1740 2010 1740 2022 V2062 H1380 V2022 Q1380 2010 1392 2010 Z"/>
+    <text class="entity-name" x="1404" y="2043">wholesale_payments</text>
+    <text class="field" x="1404" y="2090">id</text><text class="key" x="1620" y="2090">PK</text><text class="type" x="1660" y="2090">integer</text><path class="divider" d="M1400 2102 H1720"/>
+    <text class="field" x="1404" y="2124">sale_id</text><text class="key" x="1620" y="2124">FK</text><text class="type" x="1660" y="2124">integer</text><path class="divider" d="M1400 2136 H1720"/>
+    <text class="field" x="1404" y="2158">method · amount</text><text class="type" x="1660" y="2158">varchar · numeric</text><path class="divider" d="M1400 2170 H1720"/>
+    <text class="field" x="1404" y="2192">cash_received</text><text class="type" x="1660" y="2192">numeric(12,2)</text><path class="divider" d="M1400 2204 H1720"/>
+    <text class="field" x="1404" y="2226">change_given</text><text class="type" x="1660" y="2226">numeric(12,2)</text><path class="divider" d="M1400 2238 H1720"/>
+    <text class="field" x="1404" y="2260">mpesa_reference</text><text class="key" x="1620" y="2260">NULL</text><text class="type" x="1660" y="2260">varchar(64)</text>
+  </g>
+
+  <path class="relation" d="M470 2180 H500" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="472" y="2163">1 : 0..*</text>
+  <path class="relation" d="M920 2180 H950" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="922" y="2163">1 : 0..*</text>
+  <path class="relation" d="M920 2010 H1365 V2180 H1380" marker-end="url(#crowfoot)"/>
+  <text class="relation-label" x="1150" y="1998">1 : 0..*</text>
+
+  <text class="note" x="70" y="2390">Wholesale sale items also reference products; created_by_id references staff. Delivery prices are saved per sale line.</text>
+  <text class="legend" x="70" y="2430">PK = primary key  ·  FK = foreign key  ·  UQ = unique  ·  NULL = nullable  ·  UQ* = unique with supplier_id  ·  1 to 0..* = one-to-many</text>
+</svg>
