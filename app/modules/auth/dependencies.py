@@ -38,12 +38,12 @@ async def get_current_staff(
     return staff
 
 
-async def require_owner(
+async def require_admin(
     staff: Annotated[Staff, Depends(get_current_staff)],
 ) -> Staff:
-    if staff.role != "owner":
+    if staff.role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Owner privileges required",
+            detail="Admin privileges required",
         )
     return staff

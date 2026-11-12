@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -70,3 +70,17 @@ class SaleRead(BaseModel):
     created_at: datetime
     items: list[SaleItemRead]
     payments: list[PaymentRead]
+
+
+class DailySalesSummary(BaseModel):
+    date: date
+    sale_count: int
+    total: Decimal
+    cash_total: Decimal
+    mpesa_total: Decimal
+
+
+class SalesSummary(DailySalesSummary):
+    period: Literal["daily", "weekly", "monthly"]
+    start_date: date
+    end_date: date

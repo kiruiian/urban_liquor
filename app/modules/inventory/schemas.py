@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ProductCreate(BaseModel):
-    sku: str = Field(min_length=1, max_length=64)
+    sku: str | None = Field(default=None, min_length=1, max_length=64)
     barcode: str | None = Field(default=None, max_length=64)
     name: str = Field(min_length=1, max_length=160)
     category: str | None = Field(default=None, max_length=80)

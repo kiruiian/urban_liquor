@@ -9,11 +9,11 @@ from app.core.database import Base
 class Staff(Base):
     __tablename__ = "staff"
     __table_args__ = (
-        CheckConstraint("role IN ('owner', 'cashier')", name="ck_staff_role_valid"),
+        CheckConstraint("role IN ('admin', 'cashier')", name="ck_staff_role_valid"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    email: Mapped[str] = mapped_column(String(254), unique=True, index=True)
+    username: Mapped[str] = mapped_column(String(254), unique=True)
     full_name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(16), default="cashier")

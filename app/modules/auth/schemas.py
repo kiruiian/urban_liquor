@@ -1,25 +1,35 @@
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    username: str = Field(min_length=3, max_length=254, pattern=r"^\S+$")
     password: str = Field(min_length=1, max_length=256)
 
 
 class StaffCreate(BaseModel):
-    email: EmailStr
+    username: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
     full_name: str = Field(min_length=1, max_length=120)
     password: str = Field(min_length=12, max_length=256)
-    role: str = Field(pattern="^(owner|cashier)$")
+    role: str = Field(pattern="^(admin|cashier)$")
+
+
+class StaffUpdate(BaseModel):
+    username: str | None = Field(
+        default=None, min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$"
+    )
+    full_name: str | None = Field(default=None, min_length=1, max_length=120)
+    role: str | None = Field(default=None, pattern="^(admin|cashier)$")
+    is_active: bool | None = None
 
 
 class StaffRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
-    email: EmailStr
+    username: str
     full_name: str
     role: str
+    is_active: bool
 
 
 class LoginResponse(BaseModel):

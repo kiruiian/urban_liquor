@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Annotated
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
@@ -7,7 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.modules.auth.dependencies import get_current_staff, require_owner
+from app.modules.auth.dependencies import get_current_staff, require_admin
 from app.modules.auth.models import Staff
 from app.modules.inventory.models import Product, StockMovement
 from app.modules.inventory.schemas import (
@@ -24,12 +25,17 @@ router = APIRouter()
 async def create_product(
     payload: ProductCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
-    _owner: Annotated[Staff, Depends(require_owner)],
+    _admin: Annotated[Staff, Depends(require_admin)],
 ) -> Product:
+    sku = (
+        payload.sku.strip()
+        if payload.sku and payload.sku.strip()
+        else f"UL-{uuid4().hex.upper()}"
+    )
     duplicate = await session.scalar(
         select(Product.id).where(
             or_(
-                Product.sku == payload.sku,
+                Product.sku == sku,
                 Product.barcode == payload.barcode if payload.barcode else False,
             )
         )
@@ -40,7 +46,7 @@ async def create_product(
         )
 
     product = Product(
-        sku=payload.sku,
+        sku=sku,
         barcode=payload.barcode,
         name=payload.name,
         category=payload.category,
@@ -112,14 +118,15 @@ async def update_product(
     product_id: int,
     payload: ProductUpdate,
     session: Annotated[AsyncSession, Depends(get_db)],
-    _owner: Annotated[Staff, Depends(require_owner)],
+    _admin: Annotated[Staff, Depends(require_admin)],
 ) -> Product:
     product = await session.get(Product, product_id)
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
     changes = payload.model_dump(exclude_unset=True)
-    if any(value is None for value in changes.values()):
+    nullable_fields = {"barcode", "category"}
+    if any(value is None and field not in nullable_fields for field, value in changes.items()):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Fields cannot be null"
         )
@@ -147,7 +154,7 @@ async def adjust_stock(
     product_id: int,
     payload: StockAdjustmentCreate,
     session: Annotated[AsyncSession, Depends(get_db)],
-    _owner: Annotated[Staff, Depends(require_owner)],
+    _admin: Annotated[Staff, Depends(require_admin)],
 ) -> Product:
     if payload.quantity_delta == Decimal("0"):
         raise HTTPException(
