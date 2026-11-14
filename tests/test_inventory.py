@@ -1,11 +1,17 @@
 import unittest
 from decimal import Decimal
+from types import SimpleNamespace
 
 from fastapi import HTTPException
 
 from app.modules.auth.models import Staff
 from app.modules.inventory.models import Product, StockMovement
-from app.modules.inventory.router import adjust_stock, create_product, update_product
+from app.modules.inventory.router import (
+    adjust_stock,
+    create_product,
+    inventory_insights,
+    update_product,
+)
 from app.modules.inventory.schemas import (
     ProductCreate,
     ProductUpdate,
@@ -146,3 +152,32 @@ class InventoryTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(updated.barcode)
         self.assertIsNone(updated.category)
+
+    async def test_inventory_insights_include_stock_value_and_fast_movers(self) -> None:
+        class InsightsSession:
+            async def scalar(self, _statement):
+                return Decimal("12500.00")
+
+            async def execute(self, _statement):
+                class Result:
+                    def all(self):
+                        return [
+                            SimpleNamespace(
+                                id=15,
+                                name="House Red",
+                                sku="UL-15",
+                                unit_price=Decimal("1250.00"),
+                                stock_quantity=Decimal("5"),
+                                quantity_sold=Decimal("12"),
+                            )
+                        ]
+
+                return Result()
+
+        insights = await inventory_insights(InsightsSession(), self.admin)
+
+        self.assertEqual(insights.stock_value, Decimal("12500.00"))
+        self.assertEqual(insights.currency, "KES")
+        self.assertEqual(insights.period_days, 30)
+        self.assertEqual(insights.fast_movers[0].name, "House Red")
+        self.assertEqual(insights.fast_movers[0].quantity_sold, Decimal("12"))

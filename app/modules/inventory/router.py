@@ -1,24 +1,95 @@
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select, union_all
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.modules.auth.dependencies import get_current_staff, require_admin
 from app.modules.auth.models import Staff
 from app.modules.inventory.models import Product, StockMovement
 from app.modules.inventory.schemas import (
+    FastMovingProductRead,
+    InventoryInsights,
     ProductCreate,
     ProductRead,
     ProductUpdate,
     StockAdjustmentCreate,
 )
+from app.modules.sales.models import Sale, SaleItem
+from app.modules.wholesale.models import WholesaleSale, WholesaleSaleItem
 
 router = APIRouter()
+INSIGHTS_PERIOD_DAYS = 30
+FAST_MOVER_LIMIT = 10
+
+
+@router.get("/insights", response_model=InventoryInsights)
+async def inventory_insights(
+    session: Annotated[AsyncSession, Depends(get_db)],
+    _staff: Annotated[Staff, Depends(get_current_staff)],
+) -> InventoryInsights:
+    cutoff = datetime.now(timezone.utc) - timedelta(days=INSIGHTS_PERIOD_DAYS)
+    stock_value = await session.scalar(
+        select(func.coalesce(func.sum(Product.unit_price * Product.stock_quantity), 0))
+    )
+
+    recent_items = union_all(
+        select(SaleItem.product_id, SaleItem.quantity)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .where(Sale.created_at >= cutoff),
+        select(WholesaleSaleItem.product_id, WholesaleSaleItem.quantity)
+        .join(WholesaleSale, WholesaleSale.id == WholesaleSaleItem.sale_id)
+        .where(WholesaleSale.created_at >= cutoff),
+    ).subquery()
+    sales_by_product = (
+        select(
+            recent_items.c.product_id,
+            func.sum(recent_items.c.quantity).label("quantity_sold"),
+        )
+        .group_by(recent_items.c.product_id)
+        .subquery()
+    )
+    result = await session.execute(
+        select(
+            Product.id,
+            Product.name,
+            Product.sku,
+            Product.unit_price,
+            Product.stock_quantity,
+            sales_by_product.c.quantity_sold,
+        )
+        .join(sales_by_product, sales_by_product.c.product_id == Product.id)
+        .where(Product.is_active.is_(True))
+        .order_by(
+            sales_by_product.c.quantity_sold.desc(),
+            Product.name,
+            Product.id,
+        )
+        .limit(FAST_MOVER_LIMIT)
+    )
+    fast_movers = [
+        FastMovingProductRead(
+            id=row.id,
+            name=row.name,
+            sku=row.sku,
+            unit_price=row.unit_price,
+            stock_quantity=row.stock_quantity,
+            quantity_sold=row.quantity_sold,
+        )
+        for row in result.all()
+    ]
+    return InventoryInsights(
+        currency=get_settings().currency,
+        stock_value=stock_value or Decimal("0.00"),
+        period_days=INSIGHTS_PERIOD_DAYS,
+        fast_movers=fast_movers,
+    )
 
 
 @router.post("/products", response_model=ProductRead, status_code=status.HTTP_201_CREATED)

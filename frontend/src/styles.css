@@ -177,6 +177,17 @@ input::placeholder { color: #aab4ae; }
 .staff-form-actions .primary-button { min-height: 40px; padding: 0 13px; font-size: 11px; }
 .inventory-layout { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(290px, .8fr); gap: 18px; align-items: start; }
 .inventory-side { display: flex; flex-direction: column; gap: 15px; }
+.inventory-insights { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(0, 1.8fr); gap: 15px; margin-bottom: 18px; }
+.inventory-value-card { min-width: 0; padding: 18px; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid #dfe9e1; border-radius: 12px; background: linear-gradient(145deg, #f1f7f2, #fff); }
+.inventory-value-icon { width: 35px; height: 35px; display: grid; place-items: center; margin-bottom: 15px; border-radius: 10px; color: var(--green); background: #e2eee5; }
+.inventory-value-card > span { color: #718078; font-size: 11px; }
+.inventory-value-card > strong { max-width: 100%; margin: 6px 0; overflow: hidden; color: #244333; font: 800 24px "Manrope", sans-serif; letter-spacing: -.04em; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-value-card > small, .inventory-insight-note { color: #89978f; font-size: 9px; line-height: 1.5; }
+.inventory-fast-movers { min-width: 0; padding: 17px; }
+.fast-movers-table td { padding-top: 9px; padding-bottom: 9px; }
+.fast-movers-table td:nth-child(2), .fast-movers-table td:nth-child(3), .fast-movers-table td:nth-child(4) { white-space: nowrap; }
+.fast-mover-restock { min-height: 30px; padding: 0 8px; font-size: 9px; white-space: nowrap; }
+.inventory-insight-note { display: block; margin-top: 9px; }
 .inventory-alert { max-width: 700px; margin: 0 0 12px; }
 .inventory-filterbar { display: grid; grid-template-columns: minmax(0, 1fr) 135px; gap: 9px; margin-bottom: 12px; }
 .inventory-filterbar .search-box { height: 39px; }
@@ -302,6 +313,7 @@ input::placeholder { color: #aab4ae; }
   .staff-page { padding: 24px 18px; }
   .staff-layout { grid-template-columns: 1fr; }
   .inventory-layout { grid-template-columns: 1fr; }
+  .inventory-insights { grid-template-columns: 1fr; }
   .staff-page-heading { align-items: flex-start; }
   .supplier-line { grid-template-columns: minmax(0, 1fr) 86px 28px; }
   .wholesale-payment-form { grid-template-columns: 1fr 1fr; }

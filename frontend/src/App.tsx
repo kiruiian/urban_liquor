@@ -3,6 +3,7 @@ import {
   ArrowLeft,
   ArrowDownLeft,
   ArrowRight,
+  BarChart3,
   BadgeCheck,
   Banknote,
   CalendarDays,
@@ -50,6 +51,20 @@ type Product = {
   stock_quantity: string;
   low_stock_threshold: string;
   is_active: boolean;
+};
+
+type InventoryInsights = {
+  currency: string;
+  stock_value: string;
+  period_days: number;
+  fast_movers: {
+    id: number;
+    name: string;
+    sku: string;
+    unit_price: string;
+    stock_quantity: string;
+    quantity_sold: string;
+  }[];
 };
 
 type Sale = {
@@ -411,6 +426,7 @@ function InventoryManagement({
   onProductsChanged: () => Promise<void>;
 }) {
   const [inventory, setInventory] = useState<Product[]>([]);
+  const [insights, setInsights] = useState<InventoryInsights | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [stockProductId, setStockProductId] = useState<number | null>(null);
   const [form, setForm] = useState<ProductForm>({
@@ -435,9 +451,12 @@ function InventoryManagement({
     setLoading(true);
     setError("");
     try {
-      setInventory(
-        await request<Product[]>("/inventory/products?active_only=false&limit=200", token),
-      );
+      const [products, inventoryInsights] = await Promise.all([
+        request<Product[]>("/inventory/products?active_only=false&limit=200", token),
+        request<InventoryInsights>("/inventory/insights", token),
+      ]);
+      setInventory(products);
+      setInsights(inventoryInsights);
       return true;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to load products");
@@ -592,6 +611,56 @@ function InventoryManagement({
 
       {error && <div className="alert error inventory-alert"><CircleAlert size={15} />{error}</div>}
       {notice && <div className="alert success inventory-alert"><BadgeCheck size={15} />{notice}</div>}
+
+      <div className="inventory-insights">
+        <section className="inventory-value-card">
+          <div className="inventory-value-icon"><Package size={19} /></div>
+          <span>Current stock value</span>
+          <strong>{insights ? money(insights.stock_value) : "—"}</strong>
+          <small>Based on current selling prices</small>
+        </section>
+        <section className="staff-card inventory-fast-movers">
+          <div className="staff-card-heading">
+            <div><h2>Fast-moving products</h2><p>Most units sold in the last {insights?.period_days ?? 30} days · includes retail and wholesale</p></div>
+            <BarChart3 size={19} />
+          </div>
+          {loading && !insights ? (
+            <div className="staff-loading"><LoaderCircle className="spin" size={18} /> Loading sales trends...</div>
+          ) : !insights?.fast_movers.length ? (
+            <div className="staff-empty">No product sales recorded in the last 30 days.</div>
+          ) : (
+            <div className="staff-table-wrap">
+              <table className="staff-table fast-movers-table">
+                <thead><tr><th>Product</th><th>Sold</th><th>In stock</th><th>Suggested add</th><th></th></tr></thead>
+                <tbody>
+                  {insights.fast_movers.map((product) => (
+                    <tr key={product.id}>
+                      <td><b>{product.name}</b><small>{product.sku}</small></td>
+                      <td>{product.quantity_sold}</td>
+                      <td>{product.stock_quantity}</td>
+                      <td>{product.quantity_sold}</td>
+                      <td>
+                        <button
+                          type="button"
+                          className="secondary-button fast-mover-restock"
+                          onClick={() => {
+                            setStockProductId(product.id);
+                            setStockDelta(product.quantity_sold);
+                            setStockReason(`Suggested restock: ${insights.period_days}-day sales`);
+                          }}
+                        >
+                          <Plus size={14} /> Restock
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          <small className="inventory-insight-note">Suggested add matches the quantity sold in this period; adjust it before saving if needed.</small>
+        </section>
+      </div>
 
       <div className="inventory-layout">
         <section className="staff-card">

@@ -47,3 +47,19 @@ class ProductRead(BaseModel):
 class StockAdjustmentCreate(BaseModel):
     quantity_delta: Decimal = Field(allow_inf_nan=False, max_digits=12, decimal_places=3)
     reason: str = Field(min_length=1, max_length=200)
+
+
+class FastMovingProductRead(BaseModel):
+    id: int
+    name: str
+    sku: str
+    unit_price: Decimal
+    stock_quantity: Decimal
+    quantity_sold: Decimal
+
+
+class InventoryInsights(BaseModel):
+    currency: str
+    stock_value: Decimal
+    period_days: int
+    fast_movers: list[FastMovingProductRead]
