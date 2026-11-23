@@ -2,11 +2,11 @@ import unittest
 
 from fastapi import HTTPException
 
-from app.core.security import get_password_hash
+from app.core.security import get_password_hash, verify_password
 from app.modules.auth.dependencies import require_admin
 from app.modules.auth.models import Staff
-from app.modules.auth.router import login
-from app.modules.auth.schemas import LoginRequest
+from app.modules.auth.router import login, update_staff_password
+from app.modules.auth.schemas import LoginRequest, StaffPasswordUpdate
 
 
 class AuthTests(unittest.IsolatedAsyncioTestCase):
@@ -85,3 +85,45 @@ class AuthTests(unittest.IsolatedAsyncioTestCase):
             await require_admin(cashier)
 
         self.assertEqual(raised.exception.status_code, 403)
+
+    async def test_admin_can_change_staff_password(self) -> None:
+        class Session:
+            async def get(self, _model, staff_id):
+                return self.staff if staff_id == self.staff.id else None
+
+            async def flush(self):
+                pass
+
+            staff = self.admin
+
+        session = Session()
+        new_password = "new secure password"
+
+        await update_staff_password(
+            self.admin.id,
+            StaffPasswordUpdate(password=new_password),
+            session,
+            self.admin,
+        )
+
+        self.assertTrue(verify_password(new_password, self.admin.password_hash))
+        self.assertFalse(verify_password(self.password, self.admin.password_hash))
+
+    async def test_changing_missing_staff_password_returns_404(self) -> None:
+        class Session:
+            async def get(self, _model, _staff_id):
+                return None
+
+        with self.assertRaises(HTTPException) as raised:
+            await update_staff_password(
+                999,
+                StaffPasswordUpdate(password="new secure password"),
+                Session(),
+                self.admin,
+            )
+
+        self.assertEqual(raised.exception.status_code, 404)
+
+    def test_staff_password_must_be_at_least_12_characters(self) -> None:
+        with self.assertRaises(ValueError):
+            StaffPasswordUpdate(password="short")

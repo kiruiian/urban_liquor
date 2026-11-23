@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,7 @@ from app.modules.auth.schemas import (
     LoginRequest,
     LoginResponse,
     StaffCreate,
+    StaffPasswordUpdate,
     StaffRead,
     StaffUpdate,
 )
@@ -157,3 +158,25 @@ async def update_staff(
             status_code=status.HTTP_409_CONFLICT, detail="Username is already in use"
         ) from exc
     return staff
+
+
+@router.post(
+    "/staff/{staff_id}/password",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
+async def update_staff_password(
+    staff_id: int,
+    payload: StaffPasswordUpdate,
+    session: Annotated[AsyncSession, Depends(get_db)],
+    _admin: Annotated[Staff, Depends(require_admin)],
+) -> Response:
+    staff = await session.get(Staff, staff_id)
+    if staff is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found"
+        )
+
+    staff.password_hash = get_password_hash(payload.password)
+    await session.flush()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -279,20 +279,33 @@ function StaffManagement({
       role: form.role,
       ...(!editing ? { password: form.password } : {}),
     };
+    let profileSaved = false;
     try {
       await request<Staff>(editing ? `/auth/staff/${editingId}` : "/auth/staff", token, {
         method: editing ? "PATCH" : "POST",
         body: JSON.stringify(payload),
       });
+      profileSaved = true;
+      if (editingId !== null && form.password.length > 0) {
+        await request<void>(`/auth/staff/${editingId}/password`, token, {
+          method: "POST",
+          body: JSON.stringify({ password: form.password }),
+        });
+      }
       const refreshed = await loadStaff();
       resetForm();
       setNotice(
         refreshed
-          ? editing ? "Staff account updated." : "Staff account created."
+          ? editing
+            ? form.password.length > 0
+              ? "Staff account and password updated."
+              : "Staff account updated."
+            : "Staff account created."
           : "Changes saved, but the staff list could not be refreshed.",
       );
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Unable to save staff account");
+      const message = caught instanceof Error ? caught.message : "Unable to save staff account";
+      setError(profileSaved ? `Staff account saved, but the password was not changed: ${message}` : message);
     } finally {
       setSaving(false);
     }
@@ -394,7 +407,7 @@ function StaffManagement({
           </div>
           <label>Full name<input value={form.full_name} onChange={(event) => setForm({ ...form, full_name: event.target.value })} maxLength={120} required /></label>
           <label>Username<input value={form.username} onChange={(event) => setForm({ ...form, username: event.target.value })} minLength={3} maxLength={64} pattern="[a-zA-Z0-9._-]+" autoComplete="off" required /></label>
-          {editingId === null && <label>Temporary password<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} maxLength={256} autoComplete="new-password" required /><small className="field-hint">At least 12 characters. The staff member can sign in with this password.</small></label>}
+          <label>{editingId === null ? "Temporary password" : "New password (optional)"}<input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} minLength={12} maxLength={256} autoComplete="new-password" required={editingId === null} /><small className="field-hint">{editingId === null ? "At least 12 characters. The staff member can sign in with this password." : "Leave blank to keep the current password. Enter at least 12 characters to change it."}</small></label>
           <label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as StaffForm["role"] })} disabled={Boolean(lastActiveAdminEditing)}><option value="cashier">Cashier</option><option value="admin">Admin</option></select></label>
           {lastActiveAdminEditing && <p className="field-hint">The last active admin cannot be demoted or deactivated.</p>}
           <div className="staff-form-actions">
@@ -658,7 +671,6 @@ function InventoryManagement({
               </table>
             </div>
           )}
-          <small className="inventory-insight-note">Suggested add matches the quantity sold in this period; adjust it before saving if needed.</small>
         </section>
       </div>
 
@@ -790,6 +802,7 @@ function SuppliersManagement({
   });
   const [supplierId, setSupplierId] = useState("");
   const [supplierReference, setSupplierReference] = useState("");
+  const [receiptProductSearch, setReceiptProductSearch] = useState("");
   const [receiptLines, setReceiptLines] = useState<SupplierReceiptLineForm[]>([
     { product_id: "", quantity_received: "" },
   ]);
@@ -911,6 +924,12 @@ function SuppliersManagement({
   }
 
   const activeSuppliers = suppliers.filter((supplier) => supplier.is_active);
+  const receiptProductQuery = receiptProductSearch.trim().toLowerCase();
+  const hasReceiptProductMatches = products.some((product) =>
+    `${product.name} ${product.category || ""} ${product.barcode || ""}`
+      .toLowerCase()
+      .includes(receiptProductQuery),
+  );
 
   return (
     <section className="staff-page">
@@ -1012,12 +1031,20 @@ function SuppliersManagement({
               {activeSuppliers.map((supplier) => <option value={supplier.id} key={supplier.id}>{supplier.name}</option>)}
             </select></label>
             <label>Invoice / delivery reference <span className="optional-label">Optional</span><input value={supplierReference} onChange={(event) => setSupplierReference(event.target.value)} maxLength={80} /></label>
+            <div className="search-box supplier-product-search">
+              <Search size={16} />
+              <input aria-label="Search delivery products" value={receiptProductSearch} onChange={(event) => setReceiptProductSearch(event.target.value)} placeholder="Search products by name or barcode..." />
+            </div>
+            {receiptProductQuery && !hasReceiptProductMatches && <small className="field-hint">No products match your search.</small>}
             <div className="supplier-lines">
               {receiptLines.map((line, index) => (
                 <div className="supplier-line" key={index}>
                   <label>Product<select value={line.product_id} onChange={(event) => setReceiptLines((current) => current.map((item, lineIndex) => lineIndex === index ? { ...item, product_id: event.target.value } : item))} required>
                     <option value="">Select product</option>
-                    {products.filter((product) => !receiptLines.some((other, otherIndex) => otherIndex !== index && other.product_id === String(product.id))).map((product) => <option value={product.id} key={product.id}>{product.name} · {product.stock_quantity} in stock</option>)}
+                    {products.filter((product) =>
+                      !receiptLines.some((other, otherIndex) => otherIndex !== index && other.product_id === String(product.id)) &&
+                      (!receiptProductQuery || `${product.name} ${product.category || ""} ${product.barcode || ""}`.toLowerCase().includes(receiptProductQuery) || String(product.id) === line.product_id),
+                    ).map((product) => <option value={product.id} key={product.id}>{product.name}{product.category ? ` · ${product.category}` : ""} · {product.stock_quantity} in stock</option>)}
                   </select></label>
                   <label>Qty received<input type="number" min="0.001" step="0.001" value={line.quantity_received} onChange={(event) => setReceiptLines((current) => current.map((item, lineIndex) => lineIndex === index ? { ...item, quantity_received: event.target.value } : item))} required /></label>
                   {receiptLines.length > 1 && <button type="button" className="remove-supplier-line" aria-label="Remove delivery item" onClick={() => setReceiptLines((current) => current.filter((_, lineIndex) => lineIndex !== index))}><X size={15} /></button>}
@@ -1599,7 +1626,6 @@ export default function App() {
   const [completedWholesaleSale, setCompletedWholesaleSale] = useState<WholesaleSale | null>(null);
   const [search, setSearch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "mpesa" | "split">("cash");
-  const [cashAllocation, setCashAllocation] = useState("");
   const [cashReceived, setCashReceived] = useState("");
   const [mpesaReference, setMpesaReference] = useState("");
   const [busy, setBusy] = useState(false);
@@ -1667,10 +1693,12 @@ export default function App() {
   const cashAmount = paymentMethod === "cash"
     ? total
     : paymentMethod === "split"
-      ? Math.min(total, Math.max(0, Number(cashAllocation) || 0))
+      ? Math.min(total, Math.max(0, Number(cashReceived) || 0))
       : 0;
   const mpesaAmount = total - cashAmount;
-  const cashChange = Math.max(0, (Number(cashReceived) || 0) - cashAmount);
+  const cashChange = paymentMethod === "cash"
+    ? Math.max(0, (Number(cashReceived) || 0) - cashAmount)
+    : 0;
 
   function addToCart(product: Product) {
     if (Number(product.stock_quantity) <= 0) return;
@@ -1728,7 +1756,7 @@ export default function App() {
   async function completeSale() {
     if (!token || !cart.length || total <= 0) return;
     if (paymentMethod === "split" && (cashAmount <= 0 || mpesaAmount <= 0)) {
-      setError("Enter a cash amount between zero and the sale total to split payment.");
+      setError("Enter a cash amount below the sale total; the remaining balance will be paid via M-Pesa.");
       return;
     }
     if (cashAmount > 0 && (Number(cashReceived) || 0) < cashAmount) {
@@ -1770,7 +1798,6 @@ export default function App() {
       setCompletedSale(sale);
       setCart([]);
       setCashReceived("");
-      setCashAllocation("");
       setMpesaReference("");
       await refreshProducts(token);
     } catch (caught) {
@@ -1920,12 +1947,13 @@ export default function App() {
             <div className="payment-options">
               <button className={paymentMethod === "cash" ? "payment-option selected" : "payment-option"} onClick={() => setPaymentMethod("cash")}><Banknote size={17} />Cash</button>
               <button className={paymentMethod === "mpesa" ? "payment-option selected" : "payment-option"} onClick={() => setPaymentMethod("mpesa")}><Smartphone size={17} />M-Pesa</button>
-              <button className={paymentMethod === "split" ? "payment-option selected" : "payment-option"} onClick={() => { setPaymentMethod("split"); setCashAllocation(total ? (total / 2).toFixed(2) : ""); }}><ArrowDownLeft size={17} />Split</button>
+              <button className={paymentMethod === "split" ? "payment-option selected" : "payment-option"} onClick={() => { setPaymentMethod("split"); setCashReceived(total ? (total / 2).toFixed(2) : ""); }}><ArrowDownLeft size={17} />Split</button>
             </div>
             {(paymentMethod === "cash" || paymentMethod === "split") && (
               <div className="payment-fields">
-                {paymentMethod === "split" && <label>Cash portion<input type="number" min="0.01" max={total} step="0.01" value={cashAllocation} onChange={(event) => setCashAllocation(event.target.value)} placeholder="Amount paid in cash" /></label>}
-                <label>Cash received<input type="number" min={cashAmount} step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} placeholder={money(cashAmount)} /></label>
+                <label>Cash received<input type="number" min={paymentMethod === "split" ? "0.01" : cashAmount} max={paymentMethod === "split" ? total : undefined} step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} placeholder={paymentMethod === "split" ? "Cash amount" : money(total)} /></label>
+                {paymentMethod === "split" && <div className="change-row">M-Pesa balance <b>{money(Math.max(0, mpesaAmount))}</b></div>}
+                {paymentMethod === "split" && <small className="field-hint">The remaining balance is assigned to M-Pesa.</small>}
                 {cashChange > 0 && <div className="change-row">Change due <b>{money(cashChange)}</b></div>}
               </div>
             )}

@@ -22,6 +22,10 @@ class StaffUpdate(BaseModel):
     is_active: bool | None = None
 
 
+class StaffPasswordUpdate(BaseModel):
+    password: str = Field(min_length=12, max_length=256)
+
+
 class StaffRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

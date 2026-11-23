@@ -5,4 +5,5 @@ fastapi>=0.110
 pydantic-settings>=2.2
 python-jose[cryptography]>=3.3
 sqlalchemy[asyncio]>=2.0
+tzdata>=2025.1
 uvicorn[standard]>=0.27
