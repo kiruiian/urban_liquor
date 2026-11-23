@@ -60,6 +60,73 @@ class PaymentRead(BaseModel):
     mpesa_reference: str | None
 
 
+class SaleAmend(BaseModel):
+    items: list[SaleItemCreate] = Field(min_length=1, max_length=100)
+    settlement_method: Literal["cash", "mpesa"] | None = None
+    cash_received: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    mpesa_reference: str | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_lines_and_settlement(self) -> "SaleAmend":
+        product_ids = [item.product_id for item in self.items]
+        if len(product_ids) != len(set(product_ids)):
+            raise ValueError("Each product may appear only once in a sale")
+        if self.settlement_method is None and (
+            self.cash_received is not None or self.mpesa_reference is not None
+        ):
+            raise ValueError("A settlement method is required when recording a payment")
+        if self.settlement_method == "mpesa" and self.cash_received is not None:
+            raise ValueError("cash_received is only valid for cash payments")
+        if self.settlement_method == "cash" and self.mpesa_reference is not None:
+            raise ValueError("mpesa_reference is only valid for M-Pesa payments")
+        return self
+
+
+class SaleReturn(BaseModel):
+    sale_item_id: int = Field(gt=0)
+    quantity: Decimal = Field(gt=0, max_digits=12, decimal_places=3)
+    settlement_method: Literal["cash", "mpesa"]
+
+
+class SaleChange(BaseModel):
+    sale_item_id: int = Field(gt=0)
+    quantity: Decimal = Field(gt=0, max_digits=12, decimal_places=3)
+    replacement_product_id: int = Field(gt=0)
+    replacement_quantity: Decimal = Field(gt=0, max_digits=12, decimal_places=3)
+    settlement_method: Literal["cash", "mpesa"] | None = None
+    cash_received: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    mpesa_reference: str | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_settlement(self) -> "SaleChange":
+        if self.settlement_method is None and (
+            self.cash_received is not None or self.mpesa_reference is not None
+        ):
+            raise ValueError("A settlement method is required when recording a payment")
+        if self.settlement_method == "mpesa" and self.cash_received is not None:
+            raise ValueError("cash_received is only valid for cash payments")
+        if self.settlement_method == "cash" and self.mpesa_reference is not None:
+            raise ValueError("mpesa_reference is only valid for M-Pesa payments")
+        return self
+
+
+class SaleReturnRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    sale_id: int
+    product_name: str
+    sku: str
+    quantity: Decimal
+    unit_price: Decimal
+    amount: Decimal
+    method: str | None
+    kind: str
+    replacement_product_name: str | None
+    replacement_quantity: Decimal | None
+    created_at: datetime
+
+
 class SaleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

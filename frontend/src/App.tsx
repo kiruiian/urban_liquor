@@ -73,8 +73,22 @@ type Sale = {
   total: string;
   currency: string;
   created_at: string;
-  items: { id: number; product_name: string; sku: string; quantity: string; unit_price: string; line_total: string }[];
+  items: { id: number; product_id: number; product_name: string; sku: string; quantity: string; unit_price: string; line_total: string }[];
   payments: { id: number; method: string; amount: string; cash_received: string; change_given: string; mpesa_reference: string | null }[];
+};
+
+type SaleReturnRecord = {
+  id: number;
+  sale_id: number;
+  product_name: string;
+  sku: string;
+  quantity: string;
+  amount: string;
+  method: string | null;
+  kind: "return" | "change";
+  replacement_product_name: string | null;
+  replacement_quantity: string | null;
+  created_at: string;
 };
 
 type SalesSummary = {
@@ -1479,19 +1493,37 @@ function WholesaleManagement({
 
 function SalesHistory({
   token,
+  products,
+  canAmend,
   onBack,
+  onProductsChanged,
 }: {
   token: string;
+  products: Product[];
+  canAmend: boolean;
   onBack: () => void;
+  onProductsChanged: () => Promise<void>;
 }) {
   const [saleDate, setSaleDate] = useState(() => localDateValue(new Date()));
   const [period, setPeriod] = useState<SalesSummary["period"]>("daily");
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [returns, setReturns] = useState<SaleReturnRecord[]>([]);
+  const [ledger, setLedger] = useState<"transactions" | "returns">("transactions");
   const [offset, setOffset] = useState(0);
   const [expandedSaleId, setExpandedSaleId] = useState<number | null>(null);
+  const [action, setAction] = useState<{ saleId: number; itemId: number; mode: "return" | "change" } | null>(null);
+  const [actionQuantity, setActionQuantity] = useState("1");
+  const [replacementProductId, setReplacementProductId] = useState("");
+  const [replacementQuantity, setReplacementQuantity] = useState("1");
+  const [settlementMethod, setSettlementMethod] = useState<"cash" | "mpesa">("cash");
+  const [settlementCash, setSettlementCash] = useState("");
+  const [settlementReference, setSettlementReference] = useState("");
+  const [savingAction, setSavingAction] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const pageSize = 50;
 
   useEffect(() => {
@@ -1502,11 +1534,13 @@ function SalesHistory({
     Promise.all([
       request<SalesSummary>(`/sales/summary?period=${period}&date=${saleDate}`, token),
       request<Sale[]>(`/sales?from_date=${fromDate}&to_date=${toDate}&offset=${offset}&limit=${pageSize}`, token),
+      request<SaleReturnRecord[]>(`/sales/returns?from_date=${fromDate}&to_date=${toDate}`, token),
     ])
-      .then(([dailySummary, dailySales]) => {
+      .then(([dailySummary, dailySales, dailyReturns]) => {
         if (!active) return;
         setSummary(dailySummary);
         setSales(dailySales);
+        setReturns(dailyReturns);
       })
       .catch((caught) => {
         if (!active) return;
@@ -1518,18 +1552,33 @@ function SalesHistory({
     return () => {
       active = false;
     };
-  }, [offset, period, saleDate, token]);
+  }, [offset, period, reloadKey, saleDate, token]);
 
   function changeDate(value: string) {
     setSaleDate(value);
     setOffset(0);
     setExpandedSaleId(null);
+    setAction(null);
   }
 
   function changePeriod(value: SalesSummary["period"]) {
     setPeriod(value);
     setOffset(0);
     setExpandedSaleId(null);
+    setAction(null);
+  }
+
+  function openAction(sale: Sale, item: Sale["items"][number], mode: "return" | "change") {
+    setExpandedSaleId(sale.id);
+    setAction({ saleId: sale.id, itemId: item.id, mode });
+    setActionQuantity(String(Number(item.quantity)));
+    setReplacementProductId("");
+    setReplacementQuantity("1");
+    setSettlementMethod(sale.payments[0]?.method === "mpesa" ? "mpesa" : "cash");
+    setSettlementCash("");
+    setSettlementReference("");
+    setError("");
+    setNotice("");
   }
 
   const periodLabel = period === "daily" ? "Daily" : period === "weekly" ? "Weekly" : "Monthly";
@@ -1540,7 +1589,7 @@ function SalesHistory({
         <div>
           <span className="eyebrow">SALES &amp; REPORTS</span>
           <h1>Sales history</h1>
-          <p className="muted">Review transactions and cumulative payment totals.</p>
+          <p className="muted">Review sales, and see returned bottles on their own list.</p>
         </div>
         <div className="sales-heading-actions">
           <div className="sales-period-picker" aria-label="Report period">
@@ -1554,6 +1603,7 @@ function SalesHistory({
       </div>
 
       {error && <div className="alert error inventory-alert"><CircleAlert size={15} />{error}</div>}
+      {notice && <div className="alert success inventory-alert"><BadgeCheck size={15} />{notice}</div>}
 
       <div className="sales-summary-grid">
         <article className="sales-summary-card"><span>{periodLabel} sales</span><strong>{loading ? "—" : summary?.sale_count ?? 0}</strong><small>transactions in this period</small></article>
@@ -1564,11 +1614,45 @@ function SalesHistory({
 
       <section className="staff-card sales-history-card">
         <div className="staff-card-heading">
-          <div><h2>Transactions</h2><p>{summary ? `${summary.start_date} – ${summary.end_date} · East Africa Time` : `${periodLabel} · East Africa Time`}</p></div>
+          <div>
+            <div className="sales-period-picker sales-ledger-picker" aria-label="Sales ledger">
+              <button type="button" className={ledger === "transactions" ? "selected" : ""} onClick={() => setLedger("transactions")}>Transactions</button>
+              <button type="button" className={ledger === "returns" ? "selected" : ""} onClick={() => setLedger("returns")}>Returns</button>
+            </div>
+            <p>{summary ? `${summary.start_date} – ${summary.end_date} · East Africa Time` : `${periodLabel} · East Africa Time`}</p>
+          </div>
           <ReceiptText size={19} />
         </div>
         {loading ? (
           <div className="staff-loading"><LoaderCircle className="spin" size={18} /> Loading transactions...</div>
+        ) : ledger === "returns" ? (
+          returns.length === 0 ? (
+            <div className="staff-empty">No returns or changes in this period.</div>
+          ) : (
+            <div className="staff-table-wrap">
+              <table className="staff-table sales-table">
+                <thead><tr><th>Time</th><th>Sale</th><th>Type</th><th>Item</th><th>Money</th><th>Method</th></tr></thead>
+                <tbody>
+                  {returns.map((item) => {
+                    const amount = Number(item.amount);
+                    const moneyLabel = item.kind === "change"
+                      ? amount > 0 ? `Extra ${money(amount)}` : amount < 0 ? `Refund ${money(Math.abs(amount))}` : "No extra payment"
+                      : `Refund ${money(amount)}`;
+                    return (
+                      <tr key={item.id}>
+                        <td>{formatSaleTime(item.created_at)}</td>
+                        <td><b>#{item.sale_id}</b></td>
+                        <td>{item.kind === "change" ? "Change" : "Return"}</td>
+                        <td>{item.kind === "change" && item.replacement_product_name ? `${item.product_name} → ${item.replacement_product_name}` : item.product_name}</td>
+                        <td><b>{moneyLabel}</b></td>
+                        <td>{item.method ? <span className={`payment-badge ${item.method}`}>{item.method === "mpesa" ? "M-Pesa" : "Cash"}</span> : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )
         ) : sales.length === 0 ? (
           <div className="staff-empty">No sales recorded on this date.</div>
         ) : (
@@ -1591,7 +1675,146 @@ function SalesHistory({
                         <tr className="sale-detail-row" key={`${sale.id}-details`}>
                           <td colSpan={6}>
                             <div className="sale-detail-content">
-                              <div><b>Items</b>{sale.items.map((item) => <p key={item.id}>{item.product_name} · {item.quantity} × {money(item.unit_price)} <span>{money(item.line_total)}</span></p>)}</div>
+                              <div><b>Items</b>{sale.items.map((item) => {
+                                const open = action?.saleId === sale.id && action.itemId === item.id;
+                                const soldQuantity = Number(item.quantity);
+                                const returning = Math.min(soldQuantity, Math.max(0, Number(actionQuantity) || 0));
+                                const credit = returning >= soldQuantity ? Number(item.line_total) : Number(item.unit_price) * returning;
+                                const replacement = products.find((product) => String(product.id) === replacementProductId);
+                                const existingReplacement = sale.items.find((line) => String(line.product_id) === replacementProductId);
+                                const replacementPrice = existingReplacement
+                                  ? Number(existingReplacement.unit_price)
+                                  : Number(replacement?.unit_price || 0);
+                                const giving = Math.max(0, Number(replacementQuantity) || 0);
+                                const charge = action?.mode === "change" ? replacementPrice * giving : 0;
+                                const difference = Math.round((charge - credit) * 100) / 100;
+                                return (
+                                  <div className="sale-item-row" key={item.id}>
+                                    <p>{item.product_name} · {item.quantity} × {money(item.unit_price)} <span>{money(item.line_total)}</span></p>
+                                    {canAmend && (
+                                      <div className="sale-item-actions">
+                                        <button type="button" className="secondary-button" onClick={() => openAction(sale, item, "return")}>Return</button>
+                                        <button type="button" className="secondary-button" onClick={() => openAction(sale, item, "change")}>Change</button>
+                                      </div>
+                                    )}
+                                    {canAmend && open && action.mode === "return" && (
+                                      <form className="sale-amend" onSubmit={(event) => {
+                                        event.preventDefault();
+                                        if (!(returning > 0)) {
+                                          setError("Enter the quantity to return.");
+                                          return;
+                                        }
+                                        setSavingAction(true);
+                                        setError("");
+                                        setNotice("");
+                                        void request<Sale>(`/sales/${sale.id}/return`, token, {
+                                          method: "POST",
+                                          body: JSON.stringify({
+                                            sale_item_id: item.id,
+                                            quantity: actionQuantity,
+                                            settlement_method: settlementMethod,
+                                          }),
+                                        })
+                                          .then(async () => {
+                                            setNotice(`${item.product_name} is back in stock (+${returning}).`);
+                                            setAction(null);
+                                            setReloadKey((current) => current + 1);
+                                            await onProductsChanged();
+                                          })
+                                          .catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to return the item"))
+                                          .finally(() => setSavingAction(false));
+                                      }}>
+                                        <p className="sale-amend-note">{item.product_name} goes back into stock (+{returning}). Refund {money(credit)}.</p>
+                                        <label>Quantity to return<input type="number" min="0.001" max={soldQuantity} step="0.001" value={actionQuantity} onChange={(event) => setActionQuantity(event.target.value)} required /></label>
+                                        <label>Refund as<select value={settlementMethod} onChange={(event) => setSettlementMethod(event.target.value as "cash" | "mpesa")}><option value="cash">Cash</option><option value="mpesa">M-Pesa</option></select></label>
+                                        <div className="staff-form-actions">
+                                          <button type="button" className="secondary-button" onClick={() => setAction(null)}>Cancel</button>
+                                          <button type="submit" className="primary-button" disabled={savingAction}>{savingAction ? "Saving..." : "Return to stock"}</button>
+                                        </div>
+                                      </form>
+                                    )}
+                                    {canAmend && open && action.mode === "change" && (
+                                      <form className="sale-amend" onSubmit={(event) => {
+                                        event.preventDefault();
+                                        if (!(returning > 0) || !replacement) {
+                                          setError("Choose the bottle to give and the quantity to return.");
+                                          return;
+                                        }
+                                        const payload: {
+                                          sale_item_id: number;
+                                          quantity: string;
+                                          replacement_product_id: number;
+                                          replacement_quantity: string;
+                                          settlement_method?: "cash" | "mpesa";
+                                          cash_received?: string;
+                                          mpesa_reference?: string;
+                                        } = {
+                                          sale_item_id: item.id,
+                                          quantity: actionQuantity,
+                                          replacement_product_id: replacement.id,
+                                          replacement_quantity: replacementQuantity,
+                                        };
+                                        if (difference !== 0) {
+                                          payload.settlement_method = settlementMethod;
+                                          if (difference > 0 && settlementMethod === "cash" && settlementCash.trim()) {
+                                            payload.cash_received = settlementCash;
+                                          }
+                                          if (difference > 0 && settlementMethod === "mpesa" && settlementReference.trim()) {
+                                            payload.mpesa_reference = settlementReference.trim();
+                                          }
+                                        }
+                                        setSavingAction(true);
+                                        setError("");
+                                        setNotice("");
+                                        void request<Sale>(`/sales/${sale.id}/change`, token, {
+                                          method: "POST",
+                                          body: JSON.stringify(payload),
+                                        })
+                                          .then(async () => {
+                                            setNotice(`${item.product_name} is back in stock (+${returning}). ${replacement.name} left stock (-${giving}).`);
+                                            setAction(null);
+                                            setReloadKey((current) => current + 1);
+                                            await onProductsChanged();
+                                          })
+                                          .catch((caught) => setError(caught instanceof Error ? caught.message : "Unable to change the item"))
+                                          .finally(() => setSavingAction(false));
+                                      }}>
+                                        <p className="sale-amend-note">{item.product_name} goes back into stock (+{returning}).{replacement ? ` ${replacement.name} leaves stock (-${giving}).` : ""}</p>
+                                        <div className="sale-amend-line">
+                                          <label>Quantity to return<input type="number" min="0.001" max={soldQuantity} step="0.001" value={actionQuantity} onChange={(event) => setActionQuantity(event.target.value)} required /></label>
+                                          <label>Give instead<select value={replacementProductId} onChange={(event) => setReplacementProductId(event.target.value)} required>
+                                            <option value="">Select product</option>
+                                            {products.filter((product) => product.is_active && product.id !== item.product_id).map((product) => (
+                                              <option value={product.id} key={product.id}>{product.name} · {money(product.unit_price)} · {product.stock_quantity} in stock</option>
+                                            ))}
+                                          </select></label>
+                                          <label>Quantity to give<input type="number" min="0.001" step="0.001" value={replacementQuantity} onChange={(event) => setReplacementQuantity(event.target.value)} required /></label>
+                                        </div>
+                                        {difference > 0 && (
+                                          <div className="sale-amend-settlement">
+                                            <p>Customer pays extra <b>{money(difference)}</b></p>
+                                            <label>Received by<select value={settlementMethod} onChange={(event) => setSettlementMethod(event.target.value as "cash" | "mpesa")}><option value="cash">Cash</option><option value="mpesa">M-Pesa</option></select></label>
+                                            {settlementMethod === "cash"
+                                              ? <label>Cash received<input type="number" min={difference} step="0.01" value={settlementCash} onChange={(event) => setSettlementCash(event.target.value)} placeholder={difference.toFixed(2)} /></label>
+                                              : <label>M-Pesa reference <span className="optional-label">Optional</span><input value={settlementReference} onChange={(event) => setSettlementReference(event.target.value)} maxLength={64} /></label>}
+                                          </div>
+                                        )}
+                                        {difference < 0 && (
+                                          <div className="sale-amend-settlement">
+                                            <p>Refund <b>{money(Math.abs(difference))}</b></p>
+                                            <label>Refund as<select value={settlementMethod} onChange={(event) => setSettlementMethod(event.target.value as "cash" | "mpesa")}><option value="cash">Cash</option><option value="mpesa">M-Pesa</option></select></label>
+                                          </div>
+                                        )}
+                                        {replacement && difference === 0 && <p className="sale-amend-note">No extra payment. Stock is still updated.</p>}
+                                        <div className="staff-form-actions">
+                                          <button type="button" className="secondary-button" onClick={() => setAction(null)}>Cancel</button>
+                                          <button type="submit" className="primary-button" disabled={savingAction}>{savingAction ? "Saving..." : "Save change"}</button>
+                                        </div>
+                                      </form>
+                                    )}
+                                  </div>
+                                );
+                              })}</div>
                               <div><b>Payments</b>{sale.payments.map((payment) => <p key={payment.id}>{payment.method === "mpesa" ? "M-Pesa" : "Cash"} <span>{money(payment.amount)}</span>{payment.change_given !== "0.00" && <small> · Change {money(payment.change_given)}</small>}{payment.mpesa_reference && <small> · Ref {payment.mpesa_reference}</small>}</p>)}</div>
                             </div>
                           </td>
@@ -1902,7 +2125,13 @@ export default function App() {
           onProductsChanged={() => refreshProducts(token)}
         />
       ) : activePage === "sales" ? (
-        <SalesHistory token={token} onBack={() => setActivePage("pos")} />
+        <SalesHistory
+          token={token}
+          products={products}
+          canAmend={staff.role === "admin"}
+          onBack={() => setActivePage("pos")}
+          onProductsChanged={() => refreshProducts(token)}
+        />
       ) : staff.role === "admin" && activePage === "staff" ? (
         <StaffManagement token={token} currentStaff={staff} onBack={() => setActivePage("pos")} />
       ) : <section className="workspace">

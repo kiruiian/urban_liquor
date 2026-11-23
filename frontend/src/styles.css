@@ -267,6 +267,7 @@ input::placeholder { color: #aab4ae; }
 }
 .sales-heading-actions { display: flex; align-items: center; gap: 9px; }
 .sales-period-picker { display: flex; padding: 3px; border: 1px solid #e1e8e3; border-radius: 8px; background: white; }
+.sales-ledger-picker { width: fit-content; margin-bottom: 6px; }
 .sales-period-picker button { min-height: 31px; padding: 0 9px; border: 0; border-radius: 6px; color: #77877e; background: transparent; font-size: 12px; text-transform: capitalize; }
 .sales-period-picker button.selected { color: var(--green); background: #edf4ef; font-weight: 700; }
 .sales-date-picker { min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid #e1e8e3; border-radius: 8px; color: #6d8074; background: white; font-size: 12px; font-weight: 700; }
@@ -289,6 +290,21 @@ input::placeholder { color: #aab4ae; }
 .sale-detail-content p { margin: 6px 0; color: #718078; font-size: 12px; }
 .sale-detail-content p > span { float: right; color: #3d5547; font-weight: 700; }
 .sale-detail-content p > small { color: #89978f; }
+.sale-item-row { margin: 8px 0 12px; }
+.sale-item-row > p { margin: 0 0 6px; }
+.sale-item-actions { display: flex; gap: 6px; }
+.sale-item-actions .secondary-button { min-height: 30px; padding: 0 10px; font-size: 12px; }
+.sale-amend-actions { margin-top: 10px; }
+.sale-amend { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid #e4ebe6; }
+.sale-amend-note { margin: 0; color: #66766d; font-size: 12px; line-height: 1.5; }
+.sale-amend > label { display: flex; flex-direction: column; gap: 5px; max-width: 280px; color: #4a5a52; font-size: 12px; font-weight: 700; }
+.sale-amend > label input, .sale-amend > label select { width: 100%; height: 36px; padding: 0 10px; border: 1px solid #e0e6e1; border-radius: 8px; outline: 0; color: #31453a; background: white; font-size: 13px; font-weight: 400; }
+.sale-amend-line { display: grid; grid-template-columns: 140px minmax(0, 1fr) 140px; gap: 8px; align-items: end; }
+.sale-amend-line label, .sale-amend-settlement label { display: flex; flex-direction: column; gap: 5px; color: #4a5a52; font-size: 12px; font-weight: 700; }
+.sale-amend-line input, .sale-amend-line select, .sale-amend-settlement input, .sale-amend-settlement select { width: 100%; height: 36px; padding: 0 10px; border: 1px solid #e0e6e1; border-radius: 8px; outline: 0; color: #31453a; background: white; font-size: 13px; font-weight: 400; }
+.sale-amend-settlement { display: grid; grid-template-columns: minmax(140px, 180px) minmax(160px, 240px); gap: 8px 12px; align-items: end; }
+.sale-amend-settlement p { grid-column: 1 / -1; margin: 0; color: #3a5144; font-size: 13px; }
+.sale-amend-settlement p b { margin-left: 6px; }
 .sales-pagination { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 14px; color: #89978f; font-size: 12px; }
 .sales-pagination > div { display: flex; gap: 7px; }
 .sales-pagination .secondary-button { min-height: 32px; font-size: 11px; }
@@ -322,6 +338,7 @@ input::placeholder { color: #aab4ae; }
   .sales-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .sales-heading-actions { align-items: flex-end; flex-direction: column; }
   .sale-detail-content { grid-template-columns: 1fr; gap: 12px; }
+  .sale-amend-line, .sale-amend-settlement { grid-template-columns: 1fr; }
 }
 @media (max-width: 460px) {
   body { min-width: 360px; }
