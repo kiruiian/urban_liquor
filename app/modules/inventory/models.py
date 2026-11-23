@@ -11,6 +11,10 @@ class Product(Base):
     __tablename__ = "products"
     __table_args__ = (
         CheckConstraint("unit_price >= 0", name="ck_products_unit_price_nonnegative"),
+        CheckConstraint(
+            "cost_price IS NULL OR cost_price >= 0",
+            name="ck_products_cost_price_nonnegative",
+        ),
         CheckConstraint("stock_quantity >= 0", name="ck_products_stock_nonnegative"),
         CheckConstraint("low_stock_threshold >= 0", name="ck_products_threshold_nonnegative"),
     )
@@ -21,6 +25,7 @@ class Product(Base):
     name: Mapped[str] = mapped_column(String(160), index=True)
     category: Mapped[str | None] = mapped_column(String(80))
     unit_price: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    cost_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     stock_quantity: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=Decimal("0"))
     low_stock_threshold: Mapped[Decimal] = mapped_column(Numeric(12, 3), default=Decimal("0"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

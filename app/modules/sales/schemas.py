@@ -151,3 +151,14 @@ class SalesSummary(DailySalesSummary):
     period: Literal["daily", "weekly", "monthly"]
     start_date: date
     end_date: date
+
+
+class ProfitAndLoss(BaseModel):
+    period: Literal["daily", "weekly", "monthly"]
+    start_date: date
+    end_date: date
+    retail_sales: Decimal
+    wholesale_sales: Decimal
+    cost: Decimal
+    uncosted_sales: Decimal
+    net: Decimal

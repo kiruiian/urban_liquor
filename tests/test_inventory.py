@@ -61,7 +61,12 @@ class InventoryTests(unittest.IsolatedAsyncioTestCase):
     async def test_create_product_generates_sku_and_initial_stock_movement(self) -> None:
         session = InventorySession()
         product = await create_product(
-            ProductCreate(name="House Red", unit_price=Decimal("1250.00"), initial_stock=Decimal("8")),
+            ProductCreate(
+                name="House Red",
+                unit_price=Decimal("1250.00"),
+                cost_price=Decimal("900.00"),
+                initial_stock=Decimal("8"),
+            ),
             session,
             self.admin,
         )
@@ -70,6 +75,31 @@ class InventoryTests(unittest.IsolatedAsyncioTestCase):
         movement = next(item for item in session.added if isinstance(item, StockMovement))
         self.assertEqual(movement.quantity_delta, Decimal("8"))
         self.assertEqual(movement.reference_type, "initial")
+        self.assertEqual(product.cost_price, Decimal("900.00"))
+        self.assertEqual(product.stock_quantity, Decimal("8"))
+
+    async def test_setting_buying_price_does_not_change_existing_stock(self) -> None:
+        product = Product(
+            id=15,
+            sku="UL-15",
+            name="House Red",
+            unit_price=Decimal("1250.00"),
+            stock_quantity=Decimal("8"),
+            low_stock_threshold=Decimal("2"),
+            is_active=True,
+        )
+        session = InventorySession(product=product)
+
+        updated = await update_product(
+            15,
+            ProductUpdate(cost_price=Decimal("900.00")),
+            session,
+            self.admin,
+        )
+
+        self.assertEqual(updated.cost_price, Decimal("900.00"))
+        self.assertEqual(updated.stock_quantity, Decimal("8"))
+        self.assertEqual(updated.unit_price, Decimal("1250.00"))
 
     async def test_create_product_rejects_duplicate_barcode(self) -> None:
         session = InventorySession(scalar_results=[3])
@@ -80,6 +110,7 @@ class InventoryTests(unittest.IsolatedAsyncioTestCase):
                     name="House Red",
                     barcode="12345",
                     unit_price=Decimal("1250.00"),
+                    cost_price=Decimal("900.00"),
                 ),
                 session,
                 self.admin,

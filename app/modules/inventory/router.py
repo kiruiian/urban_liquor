@@ -122,6 +122,7 @@ async def create_product(
         name=payload.name,
         category=payload.category,
         unit_price=payload.unit_price,
+        cost_price=payload.cost_price,
         stock_quantity=payload.initial_stock,
         low_stock_threshold=payload.low_stock_threshold,
     )
@@ -196,7 +197,7 @@ async def update_product(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
     changes = payload.model_dump(exclude_unset=True)
-    nullable_fields = {"barcode", "category"}
+    nullable_fields = {"barcode", "category", "cost_price"}
     if any(value is None and field not in nullable_fields for field, value in changes.items()):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Fields cannot be null"

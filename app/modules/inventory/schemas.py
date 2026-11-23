@@ -10,6 +10,7 @@ class ProductCreate(BaseModel):
     name: str = Field(min_length=1, max_length=160)
     category: str | None = Field(default=None, max_length=80)
     unit_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
+    cost_price: Decimal = Field(ge=0, max_digits=12, decimal_places=2)
     initial_stock: Decimal = Field(default=Decimal("0"), ge=0, max_digits=12, decimal_places=3)
     low_stock_threshold: Decimal = Field(
         default=Decimal("0"), ge=0, max_digits=12, decimal_places=3
@@ -22,6 +23,7 @@ class ProductUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=160)
     category: str | None = Field(default=None, max_length=80)
     unit_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
+    cost_price: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     low_stock_threshold: Decimal | None = Field(
         default=None, ge=0, max_digits=12, decimal_places=3
     )
@@ -37,6 +39,7 @@ class ProductRead(BaseModel):
     name: str
     category: str | None
     unit_price: Decimal
+    cost_price: Decimal | None
     stock_quantity: Decimal
     low_stock_threshold: Decimal
     is_active: bool

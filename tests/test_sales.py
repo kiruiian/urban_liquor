@@ -10,6 +10,7 @@ from app.modules.sales.models import Payment, Sale, SaleItem, SaleReturnRecord
 from app.modules.sales.router import (
     _date_range_bounds,
     _period_dates,
+    _profit_statement,
     amend_sale,
     change_sale_item,
     create_sale,
@@ -240,6 +241,28 @@ class SalesTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(sales[0].items[0].product_name, "House Red")
         self.assertEqual(sales[0].payments[0].amount, Decimal("25.00"))
+
+
+class ProfitStatementTests(unittest.TestCase):
+    def test_profit_is_sales_minus_buying_price(self) -> None:
+        retail, wholesale, cost, net = _profit_statement(
+            Decimal("1000.00"),
+            Decimal("200.00"),
+            Decimal("700.00"),
+        )
+        self.assertEqual(retail, Decimal("1000.00"))
+        self.assertEqual(wholesale, Decimal("200.00"))
+        self.assertEqual(cost, Decimal("700.00"))
+        self.assertEqual(net, Decimal("500.00"))
+
+    def test_return_that_clears_the_sale_leaves_no_profit(self) -> None:
+        _retail, _wholesale, cost, net = _profit_statement(
+            Decimal("0.00"),
+            Decimal("0.00"),
+            Decimal("0.00"),
+        )
+        self.assertEqual(cost, Decimal("0.00"))
+        self.assertEqual(net, Decimal("0.00"))
 
 
 class AmendSession:

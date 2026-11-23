@@ -268,6 +268,11 @@ input::placeholder { color: #aab4ae; }
 .sales-heading-actions { display: flex; align-items: center; gap: 9px; }
 .sales-period-picker { display: flex; padding: 3px; border: 1px solid #e1e8e3; border-radius: 8px; background: white; }
 .sales-ledger-picker { width: fit-content; margin-bottom: 6px; }
+.profit-sheet { display: flex; flex-direction: column; gap: 8px; max-width: 460px; }
+.profit-sheet p { display: flex; justify-content: space-between; gap: 16px; margin: 0; padding: 10px 0; border-bottom: 1px solid #e4ebe6; color: #31453a; font-size: 14px; }
+.profit-sheet p b { font-variant-numeric: tabular-nums; }
+.profit-net { font-size: 16px; }
+.profit-sheet small { color: #66766d; font-size: 12px; line-height: 1.5; }
 .sales-period-picker button { min-height: 31px; padding: 0 9px; border: 0; border-radius: 6px; color: #77877e; background: transparent; font-size: 12px; text-transform: capitalize; }
 .sales-period-picker button.selected { color: var(--green); background: #edf4ef; font-weight: 700; }
 .sales-date-picker { min-height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px; border: 1px solid #e1e8e3; border-radius: 8px; color: #6d8074; background: white; font-size: 12px; font-weight: 700; }

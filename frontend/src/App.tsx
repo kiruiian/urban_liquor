@@ -48,6 +48,7 @@ type Product = {
   name: string;
   category: string | null;
   unit_price: string;
+  cost_price: string | null;
   stock_quantity: string;
   low_stock_threshold: string;
   is_active: boolean;
@@ -89,6 +90,14 @@ type SaleReturnRecord = {
   replacement_product_name: string | null;
   replacement_quantity: string | null;
   created_at: string;
+};
+
+type ProfitAndLoss = {
+  retail_sales: string;
+  wholesale_sales: string;
+  cost: string;
+  uncosted_sales: string;
+  net: string;
 };
 
 type SalesSummary = {
@@ -439,6 +448,7 @@ type ProductForm = {
   name: string;
   category: string;
   unit_price: string;
+  cost_price: string;
   initial_stock: string;
   low_stock_threshold: string;
 };
@@ -461,6 +471,7 @@ function InventoryManagement({
     name: "",
     category: "",
     unit_price: "",
+    cost_price: "",
     initial_stock: "0",
     low_stock_threshold: "0",
   });
@@ -519,6 +530,7 @@ function InventoryManagement({
       name: "",
       category: "",
       unit_price: "",
+      cost_price: "",
       initial_stock: "0",
       low_stock_threshold: "0",
     });
@@ -533,6 +545,7 @@ function InventoryManagement({
       name: product.name,
       category: product.category || "",
       unit_price: product.unit_price,
+      cost_price: product.cost_price || "",
       initial_stock: "0",
       low_stock_threshold: product.low_stock_threshold,
     });
@@ -557,6 +570,7 @@ function InventoryManagement({
       name: form.name.trim(),
       category: form.category.trim() || null,
       unit_price: form.unit_price,
+      cost_price: form.cost_price.trim() === "" ? null : form.cost_price,
       low_stock_threshold: form.low_stock_threshold || "0",
       ...(!editing ? { initial_stock: form.initial_stock || "0" } : {}),
     };
@@ -710,7 +724,7 @@ function InventoryManagement({
           ) : (
             <div className="staff-table-wrap">
               <table className="staff-table inventory-table">
-                <thead><tr><th>Product</th><th>Price</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Product</th><th>Selling</th><th>Buying</th><th>Stock</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                   {visibleProducts.map((product) => {
                     const lowStock = Number(product.stock_quantity) <= Number(product.low_stock_threshold);
@@ -718,6 +732,7 @@ function InventoryManagement({
                       <tr key={product.id}>
                         <td><b>{product.name}</b>{product.category && <small>{product.category}</small>}</td>
                         <td>{money(product.unit_price)}</td>
+                        <td>{product.cost_price ? money(product.cost_price) : "—"}</td>
                         <td><span className={lowStock ? "stock low" : "stock"}>{product.stock_quantity}</span><small>Threshold: {product.low_stock_threshold}</small></td>
                         <td><span className={`status-badge ${product.is_active ? "active" : "inactive"}`}>{product.is_active ? "Active" : "Inactive"}</span></td>
                         <td>
@@ -748,13 +763,14 @@ function InventoryManagement({
         <div className="inventory-side">
           <form className="staff-card staff-form" onSubmit={submitProduct}>
             <div className="staff-card-heading">
-              <div><h2>{editingId === null ? "Add product" : "Edit product"}</h2><p>Prices are entered in KES.</p></div>
+              <div><h2>{editingId === null ? "Add product" : "Edit product"}</h2><p>Buying and selling prices are in KES. Saving them does not change the quantity in stock.</p></div>
               <Package size={19} />
             </div>
             <label>Product name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} maxLength={160} required /></label>
             <label>Barcode <span className="optional-label">Optional</span><input value={form.barcode} onChange={(event) => setForm({ ...form, barcode: event.target.value })} maxLength={64} /></label>
             <label>Category <span className="optional-label">Optional</span><input value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} maxLength={80} /></label>
-            <label>Unit price (KES)<input type="number" min="0" step="0.01" value={form.unit_price} onChange={(event) => setForm({ ...form, unit_price: event.target.value })} required /></label>
+            <label>Buying price (KES)<input type="number" min="0" step="0.01" value={form.cost_price} onChange={(event) => setForm({ ...form, cost_price: event.target.value })} required={editingId === null} /></label>
+            <label>Selling price (KES)<input type="number" min="0" step="0.01" value={form.unit_price} onChange={(event) => setForm({ ...form, unit_price: event.target.value })} required /></label>
             {editingId === null && <label>Initial stock<input type="number" min="0" step="0.001" value={form.initial_stock} onChange={(event) => setForm({ ...form, initial_stock: event.target.value })} required /></label>}
             <label>Low-stock alert at<input type="number" min="0" step="0.001" value={form.low_stock_threshold} onChange={(event) => setForm({ ...form, low_stock_threshold: event.target.value })} required /></label>
             <div className="staff-form-actions">
@@ -1509,7 +1525,8 @@ function SalesHistory({
   const [summary, setSummary] = useState<SalesSummary | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
   const [returns, setReturns] = useState<SaleReturnRecord[]>([]);
-  const [ledger, setLedger] = useState<"transactions" | "returns">("transactions");
+  const [ledger, setLedger] = useState<"transactions" | "returns" | "profit">("transactions");
+  const [profit, setProfit] = useState<ProfitAndLoss | null>(null);
   const [offset, setOffset] = useState(0);
   const [expandedSaleId, setExpandedSaleId] = useState<number | null>(null);
   const [action, setAction] = useState<{ saleId: number; itemId: number; mode: "return" | "change" } | null>(null);
@@ -1535,12 +1552,14 @@ function SalesHistory({
       request<SalesSummary>(`/sales/summary?period=${period}&date=${saleDate}`, token),
       request<Sale[]>(`/sales?from_date=${fromDate}&to_date=${toDate}&offset=${offset}&limit=${pageSize}`, token),
       request<SaleReturnRecord[]>(`/sales/returns?from_date=${fromDate}&to_date=${toDate}`, token),
+      request<ProfitAndLoss>(`/sales/profit?period=${period}&date=${saleDate}`, token),
     ])
-      .then(([dailySummary, dailySales, dailyReturns]) => {
+      .then(([dailySummary, dailySales, dailyReturns, dailyProfit]) => {
         if (!active) return;
         setSummary(dailySummary);
         setSales(dailySales);
         setReturns(dailyReturns);
+        setProfit(dailyProfit);
       })
       .catch((caught) => {
         if (!active) return;
@@ -1618,6 +1637,7 @@ function SalesHistory({
             <div className="sales-period-picker sales-ledger-picker" aria-label="Sales ledger">
               <button type="button" className={ledger === "transactions" ? "selected" : ""} onClick={() => setLedger("transactions")}>Transactions</button>
               <button type="button" className={ledger === "returns" ? "selected" : ""} onClick={() => setLedger("returns")}>Returns</button>
+              <button type="button" className={ledger === "profit" ? "selected" : ""} onClick={() => setLedger("profit")}>Profit</button>
             </div>
             <p>{summary ? `${summary.start_date} – ${summary.end_date} · East Africa Time` : `${periodLabel} · East Africa Time`}</p>
           </div>
@@ -1625,6 +1645,17 @@ function SalesHistory({
         </div>
         {loading ? (
           <div className="staff-loading"><LoaderCircle className="spin" size={18} /> Loading transactions...</div>
+        ) : ledger === "profit" ? (
+          <div className="profit-sheet">
+            <p><span>Retail sales</span><b>{money(profit?.retail_sales || 0)}</b></p>
+            <p><span>Wholesale sales</span><b>{money(profit?.wholesale_sales || 0)}</b></p>
+            <p><span>Buying cost</span><b>{money(Number(profit?.cost || 0) === 0 ? 0 : -Number(profit?.cost || 0))}</b></p>
+            <p className="profit-net"><span>Profit</span><b>{money(profit?.net || 0)}</b></p>
+            <small>
+              Profit is the selling price minus the buying price of what is still sold. A return already reduces the sale.
+              {Number(profit?.uncosted_sales || 0) > 0 && ` ${money(profit?.uncosted_sales || 0)} was sold on products with no buying price, so that amount is still included in full.`}
+            </small>
+          </div>
         ) : ledger === "returns" ? (
           returns.length === 0 ? (
             <div className="staff-empty">No returns or changes in this period.</div>

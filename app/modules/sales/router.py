@@ -15,6 +15,7 @@ from app.modules.inventory.models import Product, StockMovement
 from app.modules.sales.models import Payment, Sale, SaleItem, SaleReturnRecord
 from app.modules.sales.schemas import (
     DailySalesSummary,
+    ProfitAndLoss,
     SaleAmend,
     SaleChange,
     SaleCreate,
@@ -23,6 +24,7 @@ from app.modules.sales.schemas import (
     SaleReturnRead,
     SalesSummary,
 )
+from app.modules.wholesale.models import WholesaleSale, WholesaleSaleItem
 
 router = APIRouter()
 CENT = Decimal("0.01")
@@ -37,6 +39,14 @@ def _date_range_bounds(start_date: date, end_date: date) -> tuple[datetime, date
     local_start = datetime.combine(start_date, time.min, tzinfo=STORE_TIMEZONE)
     local_end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=STORE_TIMEZONE)
     return local_start.astimezone(timezone.utc), local_end.astimezone(timezone.utc)
+
+
+def _profit_statement(
+    retail_sales: Decimal,
+    wholesale_sales: Decimal,
+    cost: Decimal,
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    return retail_sales, wholesale_sales, cost, retail_sales + wholesale_sales - cost
 
 
 def _period_dates(anchor_date: date, period: str) -> tuple[date, date]:
@@ -275,6 +285,89 @@ async def daily_sales_summary(
         total=total,
         cash_total=cash_total,
         mpesa_total=mpesa_total,
+    )
+
+
+async def _sum_column(session: AsyncSession, statement) -> Decimal:
+    value = await session.scalar(statement)
+    return value if value is not None else Decimal("0.00")
+
+
+@router.get("/profit", response_model=ProfitAndLoss)
+async def profit_and_loss(
+    report_date: date = Query(alias="date"),
+    period: str = Query(default="daily", pattern="^(daily|weekly|monthly)$"),
+    session: AsyncSession = Depends(get_db),
+    _staff: Staff = Depends(get_current_staff),
+) -> ProfitAndLoss:
+    start_date, end_date = _period_dates(report_date, period)
+    start, end = _date_range_bounds(start_date, end_date)
+    retail_sales = await _sum_column(
+        session,
+        select(func.coalesce(func.sum(Sale.total), Decimal("0.00"))).where(
+            Sale.created_at >= start, Sale.created_at < end
+        ),
+    )
+    wholesale_sales = await _sum_column(
+        session,
+        select(func.coalesce(func.sum(WholesaleSale.total), Decimal("0.00"))).where(
+            WholesaleSale.created_at >= start, WholesaleSale.created_at < end
+        ),
+    )
+    retail_cost = await _sum_column(
+        session,
+        select(func.coalesce(func.sum(SaleItem.quantity * Product.cost_price), Decimal("0.00")))
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .join(Product, Product.id == SaleItem.product_id)
+        .where(
+            Sale.created_at >= start,
+            Sale.created_at < end,
+            Product.cost_price.is_not(None),
+        ),
+    )
+    wholesale_cost = await _sum_column(
+        session,
+        select(
+            func.coalesce(func.sum(WholesaleSaleItem.quantity * Product.cost_price), Decimal("0.00"))
+        )
+        .join(WholesaleSale, WholesaleSale.id == WholesaleSaleItem.sale_id)
+        .join(Product, Product.id == WholesaleSaleItem.product_id)
+        .where(
+            WholesaleSale.created_at >= start,
+            WholesaleSale.created_at < end,
+            Product.cost_price.is_not(None),
+        ),
+    )
+    uncosted_retail = await _sum_column(
+        session,
+        select(func.coalesce(func.sum(SaleItem.line_total), Decimal("0.00")))
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .join(Product, Product.id == SaleItem.product_id)
+        .where(Sale.created_at >= start, Sale.created_at < end, Product.cost_price.is_(None)),
+    )
+    uncosted_wholesale = await _sum_column(
+        session,
+        select(func.coalesce(func.sum(WholesaleSaleItem.line_total), Decimal("0.00")))
+        .join(WholesaleSale, WholesaleSale.id == WholesaleSaleItem.sale_id)
+        .join(Product, Product.id == WholesaleSaleItem.product_id)
+        .where(
+            WholesaleSale.created_at >= start,
+            WholesaleSale.created_at < end,
+            Product.cost_price.is_(None),
+        ),
+    )
+    retail_sales, wholesale_sales, cost, net = _profit_statement(
+        retail_sales, wholesale_sales, retail_cost + wholesale_cost
+    )
+    return ProfitAndLoss(
+        period=period,
+        start_date=start_date,
+        end_date=end_date,
+        retail_sales=retail_sales,
+        wholesale_sales=wholesale_sales,
+        cost=cost,
+        uncosted_sales=uncosted_retail + uncosted_wholesale,
+        net=net,
     )
 
 
