@@ -186,6 +186,8 @@ async def create_sale(
                 change_given=(
                     payment.cash_received - payment.amount
                     if payment.method == "cash" and payment.cash_received is not None
+                    else payment.change_given or Decimal("0")
+                    if payment.method == "mpesa"
                     else Decimal("0")
                 ),
                 mpesa_reference=payment.mpesa_reference,

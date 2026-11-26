@@ -29,6 +29,26 @@ router = APIRouter()
 CENT = Decimal("0.01")
 
 
+def _stored_payment(payment: WholesalePaymentCreate) -> WholesalePayment:
+    if payment.method == "cash":
+        cash_received = (
+            payment.cash_received
+            if payment.cash_received is not None
+            else payment.amount
+        )
+        change_given = cash_received - payment.amount
+    else:
+        cash_received = Decimal("0.00")
+        change_given = payment.change_given or Decimal("0.00")
+    return WholesalePayment(
+        method=payment.method,
+        amount=payment.amount,
+        cash_received=cash_received,
+        change_given=change_given,
+        mpesa_reference=payment.mpesa_reference,
+    )
+
+
 @router.get("/customers", response_model=list[WholesaleCustomerRead])
 async def list_customers(
     active_only: bool = True,
@@ -211,25 +231,7 @@ async def create_wholesale_sale(
             )
         )
     for payment in payload.payments:
-        sale.payments.append(
-            WholesalePayment(
-                method=payment.method,
-                amount=payment.amount,
-                cash_received=(
-                    payment.cash_received
-                    if payment.method == "cash" and payment.cash_received is not None
-                    else payment.amount
-                    if payment.method == "cash"
-                    else Decimal("0.00")
-                ),
-                change_given=(
-                    payment.cash_received - payment.amount
-                    if payment.method == "cash" and payment.cash_received is not None
-                    else Decimal("0.00")
-                ),
-                mpesa_reference=payment.mpesa_reference,
-            )
-        )
+        sale.payments.append(_stored_payment(payment))
 
     await session.flush()
     return sale
@@ -273,24 +275,6 @@ async def add_wholesale_payment(
                 detail="Cash received must be at least the payment amount",
             )
 
-    sale.payments.append(
-        WholesalePayment(
-            method=payload.method,
-            amount=payload.amount,
-            cash_received=(
-                payload.cash_received
-                if payload.method == "cash" and payload.cash_received is not None
-                else payload.amount
-                if payload.method == "cash"
-                else Decimal("0.00")
-            ),
-            change_given=(
-                payload.cash_received - payload.amount
-                if payload.method == "cash" and payload.cash_received is not None
-                else Decimal("0.00")
-            ),
-            mpesa_reference=payload.mpesa_reference,
-        )
-    )
+    sale.payments.append(_stored_payment(payload))
     await session.flush()
     return sale

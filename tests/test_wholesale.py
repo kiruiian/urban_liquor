@@ -229,6 +229,62 @@ class WholesaleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.product.stock_quantity, Decimal("20"))
         self.assertEqual(session.added, [])
 
+    async def test_excess_mpesa_is_stored_as_cash_back(self) -> None:
+        payload = self.sale_payload(
+            [
+                WholesalePaymentCreate(
+                    method="mpesa",
+                    amount=Decimal("3600.00"),
+                    change_given=Decimal("400.00"),
+                    mpesa_reference="MPESA1",
+                )
+            ]
+        )
+        session = WholesaleSession(self.customer, [self.product])
+
+        sale = await create_wholesale_sale(payload, session, self.cashier)
+
+        self.assertEqual(sale.payments[0].amount, Decimal("3600.00"))
+        self.assertEqual(sale.payments[0].change_given, Decimal("400.00"))
+        self.assertEqual(sale.payments[0].cash_received, Decimal("0.00"))
+        self.assertEqual(sale.total, Decimal("3600.00"))
+
+    async def test_later_mpesa_payment_can_include_cash_back(self) -> None:
+        sale = WholesaleSale(
+            id=23,
+            customer_id=9,
+            customer_name="Town Spirits",
+            created_by_id=2,
+            created_by_name="Cashier",
+            currency="KES",
+            total=Decimal("3600.00"),
+        )
+        sale.items = []
+        sale.payments = []
+        session = WholesaleSession(self.customer, [self.product], sale=sale)
+
+        updated = await add_wholesale_payment(
+            23,
+            WholesalePaymentCreate(
+                method="mpesa",
+                amount=Decimal("2600.00"),
+                change_given=Decimal("150.00"),
+            ),
+            session,
+            self.cashier,
+        )
+
+        self.assertEqual(updated.payments[0].amount, Decimal("2600.00"))
+        self.assertEqual(updated.payments[0].change_given, Decimal("150.00"))
+
+    def test_cash_payment_does_not_accept_a_separate_cash_back_figure(self) -> None:
+        with self.assertRaises(ValidationError):
+            WholesalePaymentCreate(
+                method="cash",
+                amount=Decimal("100.00"),
+                change_given=Decimal("20.00"),
+            )
+
     def test_customer_name_is_trimmed_and_cannot_be_blank(self) -> None:
         customer = WholesaleCustomerCreate(name="  Town Spirits  ")
         self.assertEqual(customer.name, "Town Spirits")

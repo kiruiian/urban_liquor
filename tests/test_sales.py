@@ -3,6 +3,7 @@ from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 from app.modules.auth.models import Staff
 from app.modules.inventory.models import Product, StockMovement
@@ -111,6 +112,35 @@ class SalesTests(unittest.IsolatedAsyncioTestCase):
         payments = [value for value in session.added if isinstance(value, Payment)]
         cash_payment = next(value for value in payments if value.method == "cash")
         self.assertEqual(cash_payment.change_given, Decimal("2.50"))
+
+    async def test_excess_mpesa_is_given_back_as_cash(self) -> None:
+        payload = SaleCreate(
+            items=[SaleItemCreate(product_id=4, quantity=Decimal("2"))],
+            payments=[
+                PaymentCreate(
+                    method="mpesa",
+                    amount=Decimal("25.00"),
+                    change_given=Decimal("5.00"),
+                    mpesa_reference="OVER1",
+                )
+            ],
+        )
+        session = SalesSession([self.product])
+
+        await create_sale(payload, session, self.cashier)
+
+        payment = next(value for value in session.added if isinstance(value, Payment))
+        self.assertEqual(payment.amount, Decimal("25.00"))
+        self.assertEqual(payment.change_given, Decimal("5.00"))
+        self.assertEqual(payment.cash_received, Decimal("0"))
+
+    def test_cash_payment_does_not_accept_a_separate_cash_back_figure(self) -> None:
+        with self.assertRaises(ValidationError):
+            PaymentCreate(
+                method="cash",
+                amount=Decimal("25.00"),
+                change_given=Decimal("5.00"),
+            )
 
     async def test_sale_rejects_insufficient_stock_without_mutating_stock(self) -> None:
         payload = SaleCreate(

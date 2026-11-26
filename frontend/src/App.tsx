@@ -1091,6 +1091,16 @@ function SuppliersManagement({
   );
 }
 
+function deliveryPaymentMethod(payments: { method: string }[]): "Cash" | "M-Pesa" | "Split" | "Credit" {
+  const methods = new Set(payments.map((payment) => payment.method));
+  const hasCash = methods.has("cash");
+  const hasMpesa = methods.has("mpesa");
+  if (hasCash && hasMpesa) return "Split";
+  if (hasMpesa) return "M-Pesa";
+  if (hasCash) return "Cash";
+  return "Credit";
+}
+
 function WholesaleManagement({
   token,
   staffRole,
@@ -1123,11 +1133,13 @@ function WholesaleManagement({
   const [cashPayment, setCashPayment] = useState("");
   const [cashReceived, setCashReceived] = useState("");
   const [mpesaPayment, setMpesaPayment] = useState("");
+  const [mpesaReceived, setMpesaReceived] = useState("");
   const [mpesaReference, setMpesaReference] = useState("");
   const [paymentSaleId, setPaymentSaleId] = useState<number | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "mpesa">("cash");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentCashReceived, setPaymentCashReceived] = useState("");
+  const [paymentMpesaReceived, setPaymentMpesaReceived] = useState("");
   const [paymentMpesaReference, setPaymentMpesaReference] = useState("");
   const [loading, setLoading] = useState(true);
   const [savingCustomer, setSavingCustomer] = useState(false);
@@ -1232,11 +1244,20 @@ function WholesaleManagement({
     }));
   }
 
-  const deliveryTotal = lines.reduce(
+  const deliveryTotal = Math.round(lines.reduce(
     (sum, line) => sum + Number(line.quantity || 0) * Number(line.unit_price || 0),
     0,
-  );
-  const initialPaymentTotal = Number(cashPayment || 0) + Number(mpesaPayment || 0);
+  ) * 100) / 100;
+  const mpesaEntered = Math.round(Number(mpesaPayment || 0) * 100) / 100;
+  const mpesaTendered = Math.round((Number(mpesaReceived || 0) || mpesaEntered) * 100) / 100;
+  const cashEntered = Math.round(Number(cashPayment || 0) * 100) / 100;
+  const cashTendered = Math.round((Number(cashReceived || 0) || cashEntered) * 100) / 100;
+  const cashApplied = Math.min(cashEntered || cashTendered, deliveryTotal);
+  const cashChange = Math.max(0, Math.round((cashTendered - cashApplied) * 100) / 100);
+  const mpesaRoom = Math.max(0, Math.round((deliveryTotal - cashApplied) * 100) / 100);
+  const mpesaApplied = Math.min(mpesaEntered || mpesaTendered, mpesaRoom);
+  const mpesaCashBack = Math.max(0, Math.round((mpesaTendered - mpesaApplied) * 100) / 100);
+  const cashToHandBack = Math.round((cashChange + mpesaCashBack) * 100) / 100;
 
   async function submitWholesaleSale(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1244,29 +1265,30 @@ function WholesaleManagement({
       setError("Each product can only be listed once per delivery.");
       return;
     }
-    if (initialPaymentTotal > deliveryTotal) {
-      setError("Payments cannot exceed the delivery total.");
+    if (Number(cashReceived) > 0 && cashTendered < cashApplied) {
+      setError("Cash received must cover the cash payment.");
       return;
     }
-    if (Number(cashPayment) > 0 && Number(cashReceived || cashPayment) < Number(cashPayment)) {
-      setError("Cash received must cover the cash payment.");
+    if (Number(mpesaReceived) > 0 && mpesaTendered < mpesaApplied) {
+      setError("M-Pesa received must cover the M-Pesa payment.");
       return;
     }
     setSavingSale(true);
     setError("");
     setNotice("");
     const payments = [];
-    if (Number(cashPayment) > 0) {
+    if (cashApplied > 0) {
       payments.push({
         method: "cash",
-        amount: Number(cashPayment).toFixed(2),
-        cash_received: Number(cashReceived || cashPayment).toFixed(2),
+        amount: cashApplied.toFixed(2),
+        cash_received: cashTendered.toFixed(2),
       });
     }
-    if (Number(mpesaPayment) > 0) {
+    if (mpesaApplied > 0) {
       payments.push({
         method: "mpesa",
-        amount: Number(mpesaPayment).toFixed(2),
+        amount: mpesaApplied.toFixed(2),
+        ...(mpesaCashBack > 0 ? { change_given: mpesaCashBack.toFixed(2) } : {}),
         ...(mpesaReference.trim() ? { mpesa_reference: mpesaReference.trim() } : {}),
       });
     }
@@ -1284,12 +1306,17 @@ function WholesaleManagement({
           payments,
         }),
       });
-      setNotice(`Delivery #${sale.id} recorded; stock updated.`);
+      setNotice(
+        cashToHandBack > 0
+          ? `Delivery #${sale.id} recorded. Give the customer ${money(cashToHandBack)} cash.`
+          : `Delivery #${sale.id} recorded; stock updated.`,
+      );
       setDeliveryReference("");
       setLines([{ product_id: "", quantity: "", unit_price: "" }]);
       setCashPayment("");
       setCashReceived("");
       setMpesaPayment("");
+      setMpesaReceived("");
       setMpesaReference("");
       onPrintInvoice(sale);
       await loadData();
@@ -1308,11 +1335,31 @@ function WholesaleManagement({
   async function submitPayment(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!paymentSaleId) return;
-    const amount = Number(paymentAmount);
-    if (paymentMethod === "cash" && Number(paymentCashReceived || paymentAmount) < amount) {
+    const sale = sales.find((item) => item.id === paymentSaleId);
+    const balance = Math.round(Number(sale?.balance_due || 0) * 100) / 100;
+    let amount = Math.round(Number(paymentAmount) * 100) / 100;
+    let received = Math.round(Number(paymentCashReceived || 0) * 100) / 100;
+    const mpesaTenderedNow = Math.round((Number(paymentMpesaReceived || 0) || amount) * 100) / 100;
+    let mpesaCashBack = 0;
+    if (paymentMethod === "cash" && amount > balance) {
+      received = Math.max(received, amount);
+      amount = balance;
+    }
+    if (paymentMethod === "mpesa" && (amount > balance || mpesaTenderedNow > balance)) {
+      mpesaCashBack = Math.round((Math.max(amount, mpesaTenderedNow) - balance) * 100) / 100;
+      amount = balance;
+    }
+    if (paymentMethod === "cash" && received > 0 && received < amount) {
       setError("Cash received must cover the payment.");
       return;
     }
+    if (paymentMethod === "mpesa" && Number(paymentMpesaReceived) > 0 && mpesaTenderedNow < amount) {
+      setError("M-Pesa received must cover the payment.");
+      return;
+    }
+    const cashHandBack = paymentMethod === "cash"
+      ? Math.max(0, Math.round(((received || amount) - amount) * 100) / 100)
+      : mpesaCashBack;
     setSavingPayment(true);
     setError("");
     setNotice("");
@@ -1321,18 +1368,24 @@ function WholesaleManagement({
         method: "POST",
         body: JSON.stringify({
           method: paymentMethod,
-          amount: paymentAmount,
+          amount: amount.toFixed(2),
           ...(paymentMethod === "cash"
-            ? { cash_received: paymentCashReceived || paymentAmount }
-            : paymentMpesaReference.trim()
-              ? { mpesa_reference: paymentMpesaReference.trim() }
-              : {}),
+            ? { cash_received: (received || amount).toFixed(2) }
+            : {
+              ...(mpesaCashBack > 0 ? { change_given: mpesaCashBack.toFixed(2) } : {}),
+              ...(paymentMpesaReference.trim() ? { mpesa_reference: paymentMpesaReference.trim() } : {}),
+            }),
         }),
       });
-      setNotice(`Payment recorded against delivery #${paymentSaleId}.`);
+      setNotice(
+        cashHandBack > 0
+          ? `Payment recorded against delivery #${paymentSaleId}. Give the customer ${money(cashHandBack)} cash.`
+          : `Payment recorded against delivery #${paymentSaleId}.`,
+      );
       setPaymentSaleId(null);
       setPaymentAmount("");
       setPaymentCashReceived("");
+      setPaymentMpesaReceived("");
       setPaymentMpesaReference("");
       await loadData();
     } catch (caught) {
@@ -1399,27 +1452,43 @@ function WholesaleManagement({
             ) : (
               <div className="staff-table-wrap">
                 <table className="staff-table wholesale-table">
-                  <thead><tr><th>Date / shop</th><th>Total</th><th>Paid / balance</th><th>Status</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>Date / shop</th><th>Total</th><th>Paid / balance</th><th>Method</th><th>Status</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {sales.map((sale) => (
+                    {sales.map((sale) => {
+                      const paymentMethodLabel = deliveryPaymentMethod(sale.payments);
+                      return (
                       <Fragment key={sale.id}>
                         <tr>
                           <td><b>{sale.customer_name}</b><small>#{sale.id} · {formatReceiptDate(sale.created_at)}{sale.delivery_reference ? ` · ${sale.delivery_reference}` : ""}</small></td>
                           <td>{money(sale.total)}</td>
                           <td><b>{money(sale.amount_paid)} paid</b><small>{money(sale.balance_due)} due</small></td>
+                          <td><span className={`payment-badge ${paymentMethodLabel === "M-Pesa" ? "mpesa" : paymentMethodLabel === "Cash" ? "cash" : paymentMethodLabel === "Split" ? "split" : "credit"}`}>{paymentMethodLabel}</span></td>
                           <td><span className={`status-badge ${sale.payment_status === "paid" ? "active" : "inactive"}`}>{sale.payment_status}</span></td>
                           <td><button type="button" className="staff-action" onClick={() => onPrintInvoice(sale)} aria-label={`Print invoice ${sale.id}`} title="View/print invoice"><Printer size={15} /></button></td>
                         </tr>
                         {sale.balance_due !== "0.00" && sale.payment_status !== "paid" && (
                           <tr className="wholesale-detail-row">
-                            <td colSpan={5}>
+                            <td colSpan={6}>
                               {paymentSaleId === sale.id ? (
                                 <form className="wholesale-payment-form" onSubmit={submitPayment}>
                                   <label>Method<select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "cash" | "mpesa")}><option value="cash">Cash</option><option value="mpesa">M-Pesa</option></select></label>
-                                  <label>Amount<input type="number" min="0.01" max={sale.balance_due} step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} required /></label>
+                                  <label>Amount<input type="number" min="0.01" step="0.01" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} required /></label>
                                   {paymentMethod === "cash"
-                                    ? <label>Cash received<input type="number" min={paymentAmount || "0.01"} step="0.01" value={paymentCashReceived} onChange={(event) => setPaymentCashReceived(event.target.value)} /></label>
-                                    : <label>M-Pesa reference<input value={paymentMpesaReference} onChange={(event) => setPaymentMpesaReference(event.target.value)} maxLength={64} /></label>}
+                                    ? <label>Cash received<input type="number" min="0.01" step="0.01" value={paymentCashReceived} onChange={(event) => setPaymentCashReceived(event.target.value)} /></label>
+                                    : <label>M-Pesa received<input type="number" min="0.01" step="0.01" value={paymentMpesaReceived} onChange={(event) => setPaymentMpesaReceived(event.target.value)} placeholder={paymentAmount || sale.balance_due} /></label>}
+                                  {paymentMethod === "mpesa" && <label>M-Pesa reference<input value={paymentMpesaReference} onChange={(event) => setPaymentMpesaReference(event.target.value)} maxLength={64} /></label>}
+                                  {(() => {
+                                    const typed = Math.round(Number(paymentAmount || 0) * 100) / 100;
+                                    const due = Math.round(Number(sale.balance_due) * 100) / 100;
+                                    const tendered = paymentMethod === "cash"
+                                      ? Math.round((Number(paymentCashReceived || 0) || typed) * 100) / 100
+                                      : Math.round((Number(paymentMpesaReceived || 0) || typed) * 100) / 100;
+                                    const applied = Math.min(paymentMethod === "cash" ? (typed || tendered) : typed, due);
+                                    const handBack = Math.max(0, Math.round((tendered - applied) * 100) / 100);
+                                    return handBack > 0
+                                      ? <div className="alert success">Give the customer {money(handBack)} cash. {money(applied)} is recorded against the balance.</div>
+                                      : null;
+                                  })()}
                                   <div className="wholesale-payment-actions">
                                     <button type="button" className="secondary-button" onClick={() => setPaymentSaleId(null)}>Cancel</button>
                                     <button type="submit" className="primary-button" disabled={savingPayment}>{savingPayment ? <LoaderCircle className="spin" size={16} /> : "Save payment"}</button>
@@ -1428,7 +1497,7 @@ function WholesaleManagement({
                               ) : (
                                 <div className="wholesale-detail-content">
                                   <div><b>Items</b>{sale.items.map((item) => <p key={item.id}>{item.product_name} · {item.quantity} × {money(item.unit_price)} <span>{money(item.line_total)}</span></p>)}</div>
-                                  <div><b>Payments</b>{sale.payments.length ? sale.payments.map((payment) => <p key={payment.id}>{payment.method === "mpesa" ? "M-Pesa" : "Cash"} <span>{money(payment.amount)}</span>{payment.mpesa_reference && <small> · Ref {payment.mpesa_reference}</small>}</p>) : <p>No payments recorded yet.</p>}</div>
+                                  <div><b>Payments</b>{sale.payments.length ? sale.payments.map((payment) => <p key={payment.id}>{payment.method === "mpesa" ? "M-Pesa" : "Cash"} <span>{money(payment.amount)}</span>{Number(payment.change_given) > 0 && <small> · {payment.method === "mpesa" ? "Cash back" : "Change"} {money(payment.change_given)}</small>}{payment.mpesa_reference && <small> · Ref {payment.mpesa_reference}</small>}</p>) : <p>No payments recorded yet.</p>}</div>
                                   <button type="button" className="secondary-button" onClick={() => { setPaymentSaleId(sale.id); setPaymentAmount(sale.balance_due); }}>Add payment · {money(sale.balance_due)} due</button>
                                 </div>
                               )}
@@ -1436,7 +1505,8 @@ function WholesaleManagement({
                           </tr>
                         )}
                       </Fragment>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1492,13 +1562,17 @@ function WholesaleManagement({
             <button type="button" className="secondary-button supplier-add-line" onClick={() => setLines((current) => [...current, { product_id: "", quantity: "", unit_price: "" }])} disabled={lines.length >= products.filter((product) => product.is_active && Number(product.stock_quantity) > 0).length}><Plus size={15} /> Add product</button>
             <div className="wholesale-total"><span>Delivery total</span><b>{money(deliveryTotal)}</b></div>
             <div className="wholesale-payment-inputs">
-              <label>Cash paid now<input type="number" min="0" max={deliveryTotal} step="0.01" value={cashPayment} onChange={(event) => setCashPayment(event.target.value)} /></label>
-              <label>Cash received<input type="number" min={cashPayment || "0"} step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} placeholder={cashPayment || "0.00"} /></label>
-              <label>M-Pesa paid now<input type="number" min="0" max={deliveryTotal} step="0.01" value={mpesaPayment} onChange={(event) => setMpesaPayment(event.target.value)} /></label>
+              <label>Cash paid now<input type="number" min="0" step="0.01" value={cashPayment} onChange={(event) => setCashPayment(event.target.value)} /></label>
+              <label>Cash received<input type="number" min="0" step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} placeholder={cashPayment || "0.00"} /></label>
+              <label>M-Pesa paid now<input type="number" min="0" step="0.01" value={mpesaPayment} onChange={(event) => setMpesaPayment(event.target.value)} /></label>
+              <label>M-Pesa received<input type="number" min="0" step="0.01" value={mpesaReceived} onChange={(event) => setMpesaReceived(event.target.value)} placeholder={mpesaPayment || "0.00"} /></label>
               <label>M-Pesa reference<input value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value)} maxLength={64} /></label>
             </div>
-            <small className="field-hint">Leave payments at zero for credit, or record full/partial cash and M-Pesa payments.</small>
-            {initialPaymentTotal > deliveryTotal && <div className="alert error">Payments exceed the delivery total.</div>}
+            <small className="field-hint">Leave payments at zero for credit. Type what the customer handed over in Cash received, or what arrived on the phone in M-Pesa received. Anything above the bill is given back as cash.</small>
+            {cashToHandBack > 0 && (() => {
+              const recorded = [cashApplied > 0 ? `${money(cashApplied)} cash` : "", mpesaApplied > 0 ? `${money(mpesaApplied)} M-Pesa` : ""].filter(Boolean);
+              return <div className="alert success">Give the customer {money(cashToHandBack)} cash.{recorded.length > 0 && ` ${recorded.join(" and ")} ${recorded.length > 1 ? "are" : "is"} recorded against the delivery.`}</div>;
+            })()}
             <button type="submit" className="primary-button" disabled={savingSale || activeCustomers.length === 0 || products.length === 0}>{savingSale ? <LoaderCircle className="spin" size={17} /> : "Record delivery & print invoice"}</button>
           </form>
         </div>
@@ -1846,7 +1920,7 @@ function SalesHistory({
                                   </div>
                                 );
                               })}</div>
-                              <div><b>Payments</b>{sale.payments.map((payment) => <p key={payment.id}>{payment.method === "mpesa" ? "M-Pesa" : "Cash"} <span>{money(payment.amount)}</span>{payment.change_given !== "0.00" && <small> · Change {money(payment.change_given)}</small>}{payment.mpesa_reference && <small> · Ref {payment.mpesa_reference}</small>}</p>)}</div>
+                              <div><b>Payments</b>{sale.payments.map((payment) => <p key={payment.id}>{payment.method === "mpesa" ? "M-Pesa" : "Cash"} <span>{money(payment.amount)}</span>{payment.change_given !== "0.00" && <small> · {payment.method === "mpesa" ? "Cash back" : "Change"} {money(payment.change_given)}</small>}{payment.mpesa_reference && <small> · Ref {payment.mpesa_reference}</small>}</p>)}</div>
                             </div>
                           </td>
                         </tr>
@@ -1881,6 +1955,7 @@ export default function App() {
   const [search, setSearch] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"cash" | "mpesa" | "split">("cash");
   const [cashReceived, setCashReceived] = useState("");
+  const [mpesaReceived, setMpesaReceived] = useState("");
   const [mpesaReference, setMpesaReference] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -1953,6 +2028,9 @@ export default function App() {
   const cashChange = paymentMethod === "cash"
     ? Math.max(0, (Number(cashReceived) || 0) - cashAmount)
     : 0;
+  const mpesaApplied = paymentMethod === "cash" ? 0 : Math.max(0, mpesaAmount);
+  const mpesaTendered = Math.round(((Number(mpesaReceived) || 0) || mpesaApplied) * 100) / 100;
+  const mpesaCashBack = Math.max(0, Math.round((mpesaTendered - mpesaApplied) * 100) / 100);
 
   function addToCart(product: Product) {
     if (Number(product.stock_quantity) <= 0) return;
@@ -2017,6 +2095,10 @@ export default function App() {
       setError("Cash received must cover the cash portion.");
       return;
     }
+    if (mpesaApplied > 0 && Number(mpesaReceived) > 0 && mpesaTendered < mpesaApplied) {
+      setError("M-Pesa received must cover the M-Pesa amount.");
+      return;
+    }
 
     const payments = [];
     if (cashAmount > 0) {
@@ -2030,6 +2112,7 @@ export default function App() {
       payments.push({
         method: "mpesa",
         amount: mpesaAmount.toFixed(2),
+        ...(mpesaCashBack > 0 ? { change_given: mpesaCashBack.toFixed(2) } : {}),
         ...(mpesaReference.trim() ? { mpesa_reference: mpesaReference.trim() } : {}),
       });
     }
@@ -2048,10 +2131,15 @@ export default function App() {
           payments,
         }),
       });
-      setNotice(`Sale #${sale.id} completed successfully.`);
+      setNotice(
+        mpesaCashBack > 0
+          ? `Sale #${sale.id} completed. Give the customer ${money(mpesaCashBack)} cash.`
+          : `Sale #${sale.id} completed successfully.`,
+      );
       setCompletedSale(sale);
       setCart([]);
       setCashReceived("");
+      setMpesaReceived("");
       setMpesaReference("");
       await refreshProducts(token);
     } catch (caught) {
@@ -2214,7 +2302,16 @@ export default function App() {
                 <label>Cash received<input type="number" min={paymentMethod === "split" ? "0.01" : cashAmount} max={paymentMethod === "split" ? total : undefined} step="0.01" value={cashReceived} onChange={(event) => setCashReceived(event.target.value)} placeholder={paymentMethod === "split" ? "Cash amount" : money(total)} /></label>
                 {paymentMethod === "split" && <div className="change-row">M-Pesa balance <b>{money(Math.max(0, mpesaAmount))}</b></div>}
                 {paymentMethod === "split" && <small className="field-hint">The remaining balance is assigned to M-Pesa.</small>}
+                {paymentMethod === "split" && <label>M-Pesa received<input type="number" min="0" step="0.01" value={mpesaReceived} onChange={(event) => setMpesaReceived(event.target.value)} placeholder={money(Math.max(0, mpesaAmount))} /></label>}
                 {cashChange > 0 && <div className="change-row">Change due <b>{money(cashChange)}</b></div>}
+                {paymentMethod === "split" && mpesaCashBack > 0 && <div className="change-row">Give back cash <b>{money(mpesaCashBack)}</b></div>}
+              </div>
+            )}
+            {paymentMethod === "mpesa" && (
+              <div className="payment-fields">
+                <label>M-Pesa received<input type="number" min="0" step="0.01" value={mpesaReceived} onChange={(event) => setMpesaReceived(event.target.value)} placeholder={money(total)} /></label>
+                <small className="field-hint">Type the amount that arrived on the phone. Anything above the sale is given back as cash.</small>
+                {mpesaCashBack > 0 && <div className="change-row">Give back cash <b>{money(mpesaCashBack)}</b></div>}
               </div>
             )}
             {(paymentMethod === "mpesa" || paymentMethod === "split") && <label className="reference-field">M-Pesa reference <input value={mpesaReference} onChange={(event) => setMpesaReference(event.target.value)} placeholder="Optional transaction code" /></label>}
@@ -2267,6 +2364,7 @@ export default function App() {
                     <span>{payment.method === "mpesa" ? "M-Pesa" : "Cash"}</span>
                     <b>{money(payment.amount)}</b>
                     {payment.method === "cash" && Number(payment.cash_received) > 0 && <small>Received {money(payment.cash_received)} · Change {money(payment.change_given)}</small>}
+                    {payment.method === "mpesa" && Number(payment.change_given) > 0 && <small>Received {money(Number(payment.amount) + Number(payment.change_given))} · Cash back {money(payment.change_given)}</small>}
                     {payment.mpesa_reference && <small>M-Pesa ref: {payment.mpesa_reference}</small>}
                   </p>
                 ))}
@@ -2320,6 +2418,8 @@ export default function App() {
                   <p key={payment.id}>
                     <span>{payment.method === "mpesa" ? "M-Pesa" : "Cash"}</span>
                     <b>{money(payment.amount)}</b>
+                    {payment.method === "cash" && Number(payment.cash_received) > 0 && <small>Received {money(payment.cash_received)} · Change {money(payment.change_given)}</small>}
+                    {payment.method === "mpesa" && Number(payment.change_given) > 0 && <small>Received {money(Number(payment.amount) + Number(payment.change_given))} · Cash back {money(payment.change_given)}</small>}
                     {payment.mpesa_reference && <small>M-Pesa ref: {payment.mpesa_reference}</small>}
                   </p>
                 ))}

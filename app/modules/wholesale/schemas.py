@@ -83,6 +83,9 @@ class WholesalePaymentCreate(BaseModel):
     cash_received: Decimal | None = Field(
         default=None, gt=0, max_digits=12, decimal_places=2, allow_inf_nan=False
     )
+    change_given: Decimal | None = Field(
+        default=None, ge=0, max_digits=12, decimal_places=2, allow_inf_nan=False
+    )
     mpesa_reference: str | None = Field(default=None, max_length=64)
 
     @field_validator("mpesa_reference")
@@ -96,6 +99,8 @@ class WholesalePaymentCreate(BaseModel):
             raise ValueError("cash_received is only valid for cash payments")
         if self.method == "cash" and self.mpesa_reference is not None:
             raise ValueError("mpesa_reference is only valid for M-Pesa payments")
+        if self.method == "cash" and self.change_given is not None:
+            raise ValueError("change_given is calculated from the cash received")
         return self
 
 

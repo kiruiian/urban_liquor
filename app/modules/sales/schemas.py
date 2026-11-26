@@ -14,7 +14,18 @@ class PaymentCreate(BaseModel):
     method: Literal["cash", "mpesa"]
     amount: Decimal = Field(gt=0, max_digits=12, decimal_places=2)
     cash_received: Decimal | None = Field(default=None, gt=0, max_digits=12, decimal_places=2)
+    change_given: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     mpesa_reference: str | None = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_method_fields(self) -> "PaymentCreate":
+        if self.method == "mpesa" and self.cash_received is not None:
+            raise ValueError("cash_received is only valid for cash payments")
+        if self.method == "cash" and self.mpesa_reference is not None:
+            raise ValueError("mpesa_reference is only valid for M-Pesa payments")
+        if self.method == "cash" and self.change_given is not None:
+            raise ValueError("change_given is calculated from the cash received")
+        return self
 
 
 class SaleCreate(BaseModel):
